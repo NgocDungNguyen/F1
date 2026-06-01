@@ -22,8 +22,12 @@ let mouseX = 0, mouseY = 0;
 let clickedThisFrame = false;
 
 // ── Resize ────────────────────────────────────────────────────────────────
+// Use visualViewport when available – it returns the VISIBLE area excluding
+// the browser URL bar, nav bar, and keyboard, fixing layout on Android/iOS.
 function resize() {
-  const nw = window.innerWidth, nh = window.innerHeight;
+  const vv = window.visualViewport;
+  const nw = vv ? Math.round(vv.width)  : window.innerWidth;
+  const nh = vv ? Math.round(vv.height) : window.innerHeight;
   if (nw !== W || nh !== H) { W = canvas.width = nw; H = canvas.height = nh; }
 }
 
@@ -274,3 +278,7 @@ window.addEventListener('load', () => {
 });
 
 window.addEventListener('resize', () => { resize(); checkOrientation(); });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => { resize(); checkOrientation(); });
+  window.visualViewport.addEventListener('scroll', () => { resize(); });
+}
