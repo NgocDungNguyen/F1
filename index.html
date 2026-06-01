@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>F1 Racer</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
 
+  <!-- Portrait-mode lock overlay -->
   <div id="orientationOverlay">
     <div class="rotate-content">
       <div class="rotate-icon">&#8635;</div>
@@ -16,17 +20,45 @@
     </div>
   </div>
 
+  <!-- Mobile in-game controls -->
   <div id="mobileControls">
+
+    <!-- LEFT: steering -->
     <div id="leftControls">
-      <button id="btnLeft"  class="ctrl-btn dpad" ontouchstart="touchState.left=true" ontouchend="touchState.left=false" ontouchcancel="touchState.left=false">&#9664;</button>
-      <button id="btnRight" class="ctrl-btn dpad" ontouchstart="touchState.right=true" ontouchend="touchState.right=false" ontouchcancel="touchState.right=false">&#9654;</button>
+      <button id="btnLeft"  class="ctrl-btn dpad"
+        ontouchstart="touchState.left=true;resumeAudio()"
+        ontouchend="touchState.left=false"
+        ontouchcancel="touchState.left=false">&#9664;</button>
+      <button id="btnRight" class="ctrl-btn dpad"
+        ontouchstart="touchState.right=true;resumeAudio()"
+        ontouchend="touchState.right=false"
+        ontouchcancel="touchState.right=false">&#9654;</button>
     </div>
+
+    <!-- RIGHT: throttle / brake / boost -->
     <div id="rightControls">
-      <button id="btnBrake" class="ctrl-btn pedal brake-btn" ontouchstart="touchState.brake=true" ontouchend="touchState.brake=false" ontouchcancel="touchState.brake=false">BRAKE</button>
-      <button id="btnGas"   class="ctrl-btn pedal gas-btn"   ontouchstart="touchState.gas=true"   ontouchend="touchState.gas=false"   ontouchcancel="touchState.gas=false">GAS</button>
-      <button id="btnBoost" class="ctrl-btn pedal boost-btn" ontouchstart="touchState.boost=true" ontouchend="touchState.boost=false" ontouchcancel="touchState.boost=false">&#9889;</button>
+      <button id="btnBrake" class="ctrl-btn pedal brake-btn"
+        ontouchstart="touchState.brake=true;resumeAudio()"
+        ontouchend="touchState.brake=false"
+        ontouchcancel="touchState.brake=false">BRAKE</button>
+      <button id="btnGas"   class="ctrl-btn pedal gas-btn"
+        ontouchstart="touchState.gas=true;resumeAudio()"
+        ontouchend="touchState.gas=false"
+        ontouchcancel="touchState.gas=false">GAS</button>
+      <button id="btnBoost" class="ctrl-btn pedal boost-btn"
+        ontouchstart="touchState.boost=true;resumeAudio()"
+        ontouchend="touchState.boost=false"
+        ontouchcancel="touchState.boost=false">&#9889;</button>
     </div>
-    <button id="btnPause" class="ctrl-btn pause-btn" ontouchstart="handlePauseTap()">&#9646;&#9646;</button>
+
+    <!-- TOP-RIGHT META: pause + view toggle -->
+    <div id="metaControls">
+      <button id="btnView"  class="ctrl-btn meta-btn view-btn"
+        ontouchstart="if(typeof toggleView==='function')toggleView()">&#127909;</button>
+      <button id="btnPause" class="ctrl-btn meta-btn pause-btn"
+        ontouchstart="handlePauseTap()">&#9646;&#9646;</button>
+    </div>
+
   </div>
 
   <script src="js/constants.js"></script>

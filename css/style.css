@@ -1,3 +1,4 @@
+/* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
@@ -5,14 +6,18 @@ html, body {
   overflow: hidden;
   background: #000;
   font-family: 'Courier New', Courier, monospace;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
 }
 
+/* ── Canvas ── */
 #gameCanvas {
   position: fixed;
   top: 0; left: 0;
   width: 100vw; height: 100vh;
   display: block;
   image-rendering: pixelated;
+  touch-action: none;
 }
 
 /* ── Orientation overlay ── */
@@ -27,45 +32,65 @@ html, body {
   text-align: center;
   color: #fff;
 }
-#orientationOverlay .rotate-content { padding: 20px; }
+#orientationOverlay .rotate-content { padding: 24px; }
 #orientationOverlay .rotate-icon {
-  font-size: 80px;
+  font-size: clamp(56px, 15vw, 90px);
   animation: spin 2s linear infinite;
   display: block;
   margin-bottom: 20px;
+  line-height: 1;
 }
-#orientationOverlay p { font-size: 22px; line-height: 1.6; }
+#orientationOverlay p {
+  font-size: clamp(16px, 4vw, 24px);
+  line-height: 1.7;
+}
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-/* ── Mobile controls ── */
+/* ── Mobile controls wrapper ── */
 #mobileControls {
-  display: none;
+  display: none;                /* shown by JS on mobile landscape */
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 50;
 }
 
+/* LEFT: steering buttons ─────────────────────────────── */
 #leftControls {
   position: absolute;
-  bottom: 24px; left: 20px;
+  bottom: clamp(12px, 3vh, 28px);
+  left:   clamp(10px, 2vw, 24px);
   display: flex;
-  gap: 12px;
+  gap: clamp(8px, 1.5vw, 16px);
   pointer-events: all;
+  align-items: flex-end;
 }
 
+/* RIGHT: pedal buttons ───────────────────────────────── */
 #rightControls {
   position: absolute;
-  bottom: 24px; right: 20px;
+  bottom: clamp(12px, 3vh, 28px);
+  right:  clamp(10px, 2vw, 24px);
   display: flex;
-  gap: 10px;
+  gap: clamp(6px, 1.2vw, 12px);
   align-items: flex-end;
   pointer-events: all;
 }
 
+/* TOP-RIGHT META: pause + view toggle ───────────────── */
+#metaControls {
+  position: absolute;
+  top:   clamp(8px, 2vh, 18px);
+  right: clamp(10px, 2vw, 22px);
+  display: flex;
+  gap: clamp(6px, 1vw, 12px);
+  pointer-events: all;
+  align-items: center;
+}
+
+/* ── Shared button base ── */
 .ctrl-btn {
   border: none;
-  border-radius: 50%;
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
@@ -77,39 +102,59 @@ html, body {
   justify-content: center;
   -webkit-tap-highlight-color: transparent;
   pointer-events: all;
+  transition: transform 0.06s, background 0.08s;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
+.ctrl-btn:active { transform: scale(0.90); }
 
+/* ── D-pad buttons (◀ ▶) ── */
 .dpad {
-  width: 72px; height: 72px;
-  background: rgba(255,255,255,0.18);
-  border: 2px solid rgba(255,255,255,0.4);
-  font-size: 28px;
+  width:  clamp(58px, 10vw, 82px);
+  height: clamp(58px, 10vw, 82px);
+  font-size: clamp(22px, 4vw, 34px);
   border-radius: 50%;
-  backdrop-filter: blur(4px);
+  background: rgba(255,255,255,0.16);
+  border: 2px solid rgba(255,255,255,0.35);
 }
-.dpad:active { background: rgba(255,255,255,0.35); }
+.dpad:active { background: rgba(255,255,255,0.38); }
 
+/* ── Pedal buttons ── */
 .pedal {
-  width: 72px; height: 72px;
-  font-size: 13px;
-  border-radius: 14px;
-  backdrop-filter: blur(4px);
+  width:  clamp(62px, 11vw, 86px);
+  height: clamp(62px, 11vw, 86px);
+  font-size: clamp(11px, 2vw, 15px);
+  border-radius: clamp(10px, 2vw, 16px);
+  letter-spacing: 0.03em;
 }
-.brake-btn { background: rgba(220,40,40,0.45); border: 2px solid rgba(255,80,80,0.6); }
-.brake-btn:active { background: rgba(220,40,40,0.8); }
-.gas-btn   { background: rgba(40,180,40,0.45);  border: 2px solid rgba(80,255,80,0.6);  }
-.gas-btn:active   { background: rgba(40,180,40,0.8);  }
-.boost-btn { width: 72px; height: 72px; font-size: 32px; background: rgba(0,200,200,0.45); border: 2px solid rgba(0,255,255,0.6); }
-.boost-btn:active { background: rgba(0,200,200,0.8); }
+.brake-btn {
+  background: rgba(200,30,30,0.50);
+  border: 2px solid rgba(255,80,80,0.65);
+  font-size: clamp(11px, 1.8vw, 14px);
+}
+.brake-btn:active { background: rgba(220,40,40,0.85); }
+.gas-btn {
+  background: rgba(30,170,30,0.50);
+  border: 2px solid rgba(60,255,60,0.65);
+  font-size: clamp(11px, 1.8vw, 14px);
+}
+.gas-btn:active { background: rgba(40,190,40,0.85); }
+.boost-btn {
+  font-size: clamp(26px, 5vw, 38px);
+  background: rgba(0,190,190,0.50);
+  border: 2px solid rgba(0,255,255,0.65);
+}
+.boost-btn:active { background: rgba(0,210,210,0.85); }
 
-.pause-btn {
-  position: absolute;
-  top: 16px; right: 20px;
-  width: 52px; height: 52px;
-  background: rgba(0,0,0,0.45);
-  border: 2px solid rgba(255,255,255,0.3);
-  font-size: 18px;
+/* ── Meta buttons (pause / view) ── */
+.meta-btn {
+  width:  clamp(42px, 7vw, 58px);
+  height: clamp(42px, 7vw, 58px);
   border-radius: 10px;
-  pointer-events: all;
+  background: rgba(0,0,0,0.52);
+  border: 1.5px solid rgba(255,255,255,0.30);
 }
-.pause-btn:active { background: rgba(255,255,255,0.2); }
+.meta-btn:active { background: rgba(255,255,255,0.20); }
+
+.view-btn  { font-size: clamp(18px, 3.5vw, 26px); }
+.pause-btn { font-size: clamp(14px, 2.8vw, 20px); }
