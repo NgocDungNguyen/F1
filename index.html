@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>F1 Racer</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="orientationOverlay">
+    <div class="rotate-content">
+      <div class="rotate-icon">&#8635;</div>
+      <p>Please rotate your device<br>horizontally to play.</p>
+    </div>
+  </div>
+
+  <div id="mobileControls">
+    <div id="leftControls">
+      <button id="btnLeft"  class="ctrl-btn dpad" ontouchstart="touchState.left=true" ontouchend="touchState.left=false" ontouchcancel="touchState.left=false">&#9664;</button>
+      <button id="btnRight" class="ctrl-btn dpad" ontouchstart="touchState.right=true" ontouchend="touchState.right=false" ontouchcancel="touchState.right=false">&#9654;</button>
+    </div>
+    <div id="rightControls">
+      <button id="btnBrake" class="ctrl-btn pedal brake-btn" ontouchstart="touchState.brake=true" ontouchend="touchState.brake=false" ontouchcancel="touchState.brake=false">BRAKE</button>
+      <button id="btnGas"   class="ctrl-btn pedal gas-btn"   ontouchstart="touchState.gas=true"   ontouchend="touchState.gas=false"   ontouchcancel="touchState.gas=false">GAS</button>
+      <button id="btnBoost" class="ctrl-btn pedal boost-btn" ontouchstart="touchState.boost=true" ontouchend="touchState.boost=false" ontouchcancel="touchState.boost=false">&#9889;</button>
+    </div>
+    <button id="btnPause" class="ctrl-btn pause-btn" ontouchstart="handlePauseTap()">&#9646;&#9646;</button>
+  </div>
+
+  <script src="js/constants.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/tracks.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/cockpit.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/collision.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/screens.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
