@@ -143,7 +143,7 @@ function renderMenu(W, H, _t, mx, my, clicked) {
   ctx.fillStyle    = '#1e2030';
   ctx.font         = `${_p(9)}px monospace`;
   ctx.textAlign    = 'right'; ctx.textBaseline = 'top';
-  ctx.fillText('v1.0 · 3 LAPS · 2 TRACKS', W - _p(10), H * 0.82);
+  ctx.fillText('v2.0 · 3 LAPS · 4 TRACKS · 4 VEHICLES', W - _p(10), H * 0.82);
 
   return action;
 }
@@ -206,47 +206,56 @@ function renderTrackSelect(W, H, mx, my, clicked, selectedIdx) {
   _bg();
   _hdr('SELECT TRACK', H * 0.07);
 
-  const CARD_Y  = H * 0.14;
-  const CARD_H  = H * 0.50;            // ← compact card height
-  const BTN_Y   = H * 0.67;
-  const BTN_H   = H * 0.11;
+  const AREA_Y = H * 0.13;
+  const AREA_H = H * 0.52;
+  const BTN_Y  = H * 0.67;
+  const BTN_H  = H * 0.11;
 
-  const gap = _p(8);
-  const cW  = (W - gap * 3) / 2;
+  const gap   = _p(8);
+  const cCols = 2;
+  const cRows = 2;
+  const cW    = (W - gap * (cCols + 1)) / cCols;
+  const cH    = (AREA_H - gap * (cRows + 1)) / cRows;
 
   let action = null;
 
   TRACK_DEFS.forEach((def, i) => {
-    const cx  = gap + i * (cW + gap);
+    const col = i % cCols;
+    const row = Math.floor(i / cCols);
+    const cx  = gap + col * (cW + gap);
+    const cy  = AREA_Y + gap + row * (cH + gap);
     const sel = i === selectedIdx;
-    const hov = hitTest(mx, my, cx, CARD_Y, cW, CARD_H);
+    const hov = hitTest(mx, my, cx, cy, cW, cH);
 
-    // Card bg
-    ctx.fillStyle = sel ? 'rgba(140,20,0,0.22)' : 'rgba(10,12,20,0.92)';
-    roundRect(ctx, cx, CARD_Y, cW, CARD_H, _p(7), true, false);
+    // Card background
+    ctx.fillStyle   = sel ? 'rgba(140,20,0,0.22)' : 'rgba(10,12,20,0.92)';
+    roundRect(ctx, cx, cy, cW, cH, _p(7), true, false);
     ctx.strokeStyle = sel ? '#ff4400' : (hov ? '#551100' : '#181c28');
     ctx.lineWidth   = sel ? 2.5 : 1;
-    roundRect(ctx, cx, CARD_Y, cW, CARD_H, _p(7), false, true);
+    roundRect(ctx, cx, cy, cW, cH, _p(7), false, true);
 
-    // Mini-map (top 48%)
-    const mmH = Math.round(CARD_H * 0.48);
-    _minimap(def, cx + _p(6), CARD_Y + _p(6), cW - _p(12), mmH - _p(6));
+    // Mini-map (top 46% of card)
+    const mmH = Math.round(cH * 0.46);
+    _minimap(def, cx + _p(5), cy + _p(5), cW - _p(10), mmH - _p(5));
 
-    // Text
-    const tY    = CARD_Y + mmH + _p(6);
-    const nSz   = Math.min(_p(14), cW * 0.10);
-    ctx.fillStyle    = sel ? '#ff6600' : '#eee';
-    ctx.font         = `bold ${nSz}px monospace`;
-    ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
+    // Track name
+    const tY  = cy + mmH + _p(5);
+    const nSz = Math.min(_p(12), cW * 0.092);
+    ctx.fillStyle = sel ? '#ff6600' : '#eee';
+    ctx.font      = `bold ${nSz}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillText(def.name, cx + cW / 2, tY);
 
-    const sSz = Math.min(_p(10), cW * 0.08);
+    // Subtitle
+    const sSz = Math.min(_p(9), cW * 0.070);
     ctx.fillStyle = '#778'; ctx.font = `${sSz}px monospace`;
-    ctx.fillText(def.subtitle, cx + cW / 2, tY + nSz + _p(3));
+    ctx.fillText(def.subtitle, cx + cW / 2, tY + nSz + _p(2));
 
+    // Selected checkmark
     if (sel) {
       ctx.fillStyle = '#ff4400'; ctx.font = `bold ${_p(10)}px monospace`;
-      ctx.textAlign = 'right'; ctx.fillText('✓', cx + cW - _p(7), CARD_Y + _p(6));
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillText('✓', cx + cW - _p(6), cy + _p(5));
     }
 
     if (hov && clicked) action = { type: 'SELECT', idx: i };
@@ -283,6 +292,217 @@ function _minimap(def, x, y, w, h) {
 }
 
 // ─────────────────────────────────────────────
+//  DIFFICULTY SELECT
+//  2×2 card grid (mobile) / 1×4 row (desktop)
+//  Cards:   H*0.14 → H*0.64
+//  Buttons: H*0.67 → H*0.78
+// ─────────────────────────────────────────────
+function renderDifficultySelect(W, H, mx, my, clicked, selectedDiff) {
+  _bg();
+  _hdr('SELECT DIFFICULTY', H * 0.07);
+
+  const AREA_Y = H * 0.14;
+  const AREA_H = H * 0.50;
+  const BTN_Y  = H * 0.67;
+  const BTN_H  = H * 0.11;
+  const gap    = _p(8);
+
+  const diffs   = ['easy', 'medium', 'hard', 'asian'];
+  const cCols   = _mob() ? 2 : 4;
+  const cRows   = Math.ceil(diffs.length / cCols);
+  const cW      = (W - gap * (cCols + 1)) / cCols;
+  const cH      = (AREA_H - gap * (cRows + 1)) / cRows;
+
+  // Difficulty theme accent colors
+  const diffColors = { easy: '#00aa44', medium: '#cc8800', hard: '#cc2200', asian: '#8800cc' };
+
+  let action = null;
+
+  diffs.forEach((diff, i) => {
+    const col  = i % cCols;
+    const row  = Math.floor(i / cCols);
+    const cx   = gap + col * (cW + gap);
+    const cy   = AREA_Y + gap + row * (cH + gap);
+    const def  = DIFFICULTY_DEFS[diff];
+    const sel  = diff === selectedDiff;
+    const hov  = hitTest(mx, my, cx, cy, cW, cH);
+    const acc  = diffColors[diff] || '#cc2200';
+
+    // Card — selected bg tinted with difficulty accent colour
+    const selBg  = { '#00aa44': 'rgba(0,80,30,0.28)', '#cc8800': 'rgba(100,60,0,0.28)', '#8800cc': 'rgba(60,0,100,0.28)' };
+    ctx.fillStyle = sel ? (selBg[acc] || 'rgba(100,10,0,0.28)') : 'rgba(10,12,20,0.92)';
+    roundRect(ctx, cx, cy, cW, cH, _p(7), true, false);
+    ctx.strokeStyle = sel ? acc : (hov ? '#333' : '#181c28');
+    ctx.lineWidth   = sel ? 2.5 : 1;
+    roundRect(ctx, cx, cy, cW, cH, _p(7), false, true);
+
+    // Difficulty name
+    const nameSz = Math.min(_p(14), cW * 0.095);
+    ctx.fillStyle = sel ? acc : '#eee';
+    ctx.font      = `bold ${nameSz}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(def.name, cx + cW / 2, cy + _p(10));
+
+    // Weather icons (large)
+    const iconSz = Math.min(_p(22), cW * 0.14);
+    ctx.font = `${iconSz}px serif`;
+    ctx.fillText(def.icons, cx + cW / 2, cy + _p(10) + nameSz + _p(6));
+
+    // AI count
+    const aiSz = Math.min(_p(9), cW * 0.065);
+    ctx.fillStyle = '#778'; ctx.font = `${aiSz}px monospace`;
+    ctx.fillText(def.aiCount + ' rivals', cx + cW / 2, cy + _p(10) + nameSz + iconSz + _p(10));
+
+    // Description
+    const descSz = Math.min(_p(8), cW * 0.060);
+    ctx.fillStyle = '#556'; ctx.font = `${descSz}px monospace`;
+    const descY = cy + _p(10) + nameSz + iconSz + aiSz + _p(14);
+    // Wrap description into 2 lines at most
+    const words = def.desc.split(' ');
+    let line1 = '', line2 = '';
+    ctx.font = `${descSz}px monospace`;
+    for (const w of words) {
+      if (ctx.measureText(line1 + ' ' + w).width < cW - _p(10)) line1 += (line1 ? ' ' : '') + w;
+      else line2 += (line2 ? ' ' : '') + w;
+    }
+    ctx.fillText(line1, cx + cW / 2, descY);
+    if (line2) ctx.fillText(line2, cx + cW / 2, descY + descSz * 1.4);
+
+    // Selected checkmark
+    if (sel) {
+      ctx.fillStyle = acc; ctx.font = `bold ${_p(11)}px monospace`;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillText('✓', cx + cW - _p(7), cy + _p(6));
+    }
+
+    if (hov && clicked) action = { difficulty: diff };
+  });
+
+  // Navigation
+  const bW = Math.min(W * 0.30, _p(160));
+  if (_btn('◀  BACK', gap, BTN_Y, bW, BTN_H, mx, my, '#445566', BTN_H * 0.36) && clicked && !action) action = 'BACK';
+  if (_btn('NEXT  ▶', W - bW - gap, BTN_Y, bW, BTN_H, mx, my, '#cc2200', BTN_H * 0.38) && clicked && !action) action = 'NEXT';
+
+  return action;
+}
+
+// ── Vehicle preview dispatcher (used by VEHICLE_SELECT and CAR_CUSTOMIZE) ──
+function _drawVehiclePreview(type, cx, cy, size, color, decal) {
+  switch (type) {
+    case 'f1v2':   drawF1V2Sprite  (cx, cy, size, color, decal); break;
+    case 'nascar': drawNASCARSprite(cx, cy, size, color, decal); break;
+    case 'moto':   drawMotoSprite  (cx, cy, size, color, decal); break;
+    default:       drawF1Sprite    (cx, cy, size, color, decal); break;
+  }
+}
+
+// ─────────────────────────────────────────────
+//  VEHICLE SELECT
+//  Cards: H*0.14 → H*0.64   (2×2 grid)
+//  Buttons: H*0.67 → H*0.78
+// ─────────────────────────────────────────────
+function renderVehicleSelect(W, H, mx, my, clicked, selectedType) {
+  _bg();
+  _hdr('SELECT VEHICLE', H * 0.07);
+
+  const AREA_Y = H * 0.14;
+  const AREA_H = H * 0.50;
+  const BTN_Y  = H * 0.67;
+  const BTN_H  = H * 0.11;
+  const gap    = _p(8);
+  const cCols  = 2;
+  const cRows  = 2;
+  const cW     = (W - gap * (cCols + 1)) / cCols;
+  const cH     = (AREA_H - gap * (cRows + 1)) / cRows;
+
+  const types = ['f1', 'f1v2', 'nascar', 'moto'];
+  let action = null;
+
+  types.forEach((type, i) => {
+    const col = i % cCols;
+    const row = Math.floor(i / cCols);
+    const cx  = gap + col * (cW + gap);
+    const cy  = AREA_Y + gap + row * (cH + gap);
+    const veh = VEHICLE_DEFS[type];
+    const sel = type === selectedType;
+    const hov = hitTest(mx, my, cx, cy, cW, cH);
+
+    // Card background
+    ctx.fillStyle   = sel ? 'rgba(140,20,0,0.22)' : 'rgba(10,12,20,0.92)';
+    roundRect(ctx, cx, cy, cW, cH, _p(7), true, false);
+    ctx.strokeStyle = sel ? '#ff4400' : (hov ? '#551100' : '#181c28');
+    ctx.lineWidth   = sel ? 2.5 : 1;
+    roundRect(ctx, cx, cy, cW, cH, _p(7), false, true);
+
+    // Vehicle sprite preview (top ~50% of card)
+    const prevH  = cH * 0.50;
+    const sprSz  = Math.min(cW * 0.38, prevH * 0.82, _p(58));
+    ctx.save();
+    ctx.beginPath(); ctx.rect(cx + 2, cy + 2, cW - 4, prevH - 2); ctx.clip();
+    _drawVehiclePreview(type, cx + cW / 2, cy + prevH * 0.54, sprSz, '#e8001c', 'stripes');
+    ctx.restore();
+
+    // Vehicle name
+    const nameSz = Math.min(_p(12), cW * 0.085);
+    ctx.fillStyle = sel ? '#ff6600' : '#eee';
+    ctx.font      = `bold ${nameSz}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(veh.name, cx + cW / 2, cy + prevH + _p(4));
+
+    // Description
+    const descSz = Math.min(_p(8), cW * 0.060);
+    ctx.fillStyle = '#667'; ctx.font = `${descSz}px monospace`;
+    ctx.fillText(veh.desc, cx + cW / 2, cy + prevH + nameSz + _p(5));
+
+    // Stat bars (SPEED / HANDLING / ACCEL) — 3 rows of segmented bars
+    const barAreaY = cy + prevH + nameSz + descSz + _p(9);
+    const barAreaH = cy + cH - _p(7) - barAreaY;
+    const barH     = Math.max(4, Math.floor(barAreaH / 4));
+    const barGap   = Math.max(0, Math.floor((barAreaH - barH * 3) / 2));
+    const bx       = cx + _p(6);
+    const bw       = cW - _p(12);
+    const lblW     = Math.min(_p(13), bw * 0.28);
+    const lblSz    = Math.min(_p(7), barH * 0.70);
+    const segN     = 5;
+
+    [
+      { lbl: 'SPD', val: veh.stats.speed,    col: '#ff5522' },
+      { lbl: 'HDL', val: veh.stats.handling, col: '#4499ff' },
+      { lbl: 'ACC', val: veh.stats.accel,    col: '#44cc55' },
+    ].forEach((s, si) => {
+      const by = barAreaY + si * (barH + barGap);
+      ctx.fillStyle = '#556'; ctx.font = `${lblSz}px monospace`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(s.lbl, bx, by + barH / 2);
+      const segAreaW = bw - lblW;
+      const segW     = segAreaW / segN;
+      const segFill  = Math.max(2, segW - _p(1.5));
+      for (let seg = 0; seg < segN; seg++) {
+        const sx = bx + lblW + seg * segW;
+        ctx.fillStyle = seg < s.val ? s.col : '#1a1c24';
+        roundRect(ctx, sx, by, segFill, barH, _p(1), true, false);
+      }
+    });
+
+    // Selected checkmark
+    if (sel) {
+      ctx.fillStyle = '#ff4400'; ctx.font = `bold ${_p(11)}px monospace`;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillText('✓', cx + cW - _p(7), cy + _p(6));
+    }
+
+    if (hov && clicked) action = { vehicleType: type };
+  });
+
+  // Navigation buttons
+  const bW = Math.min(W * 0.30, _p(160));
+  if (_btn('◀  BACK', gap, BTN_Y, bW, BTN_H, mx, my, '#445566', BTN_H * 0.36) && clicked && !action) action = 'BACK';
+  if (_btn('NEXT  ▶', W - bW - gap, BTN_Y, bW, BTN_H, mx, my, '#cc2200', BTN_H * 0.38) && clicked && !action) action = 'NEXT';
+
+  return action;
+}
+
+// ─────────────────────────────────────────────
 //  CAR CUSTOMISE
 //  Content: H*0.10 → H*0.62
 //  Buttons: H*0.64 → H*0.76
@@ -292,9 +512,11 @@ const CAR_COLORS = [
   { hex: '#ffcc00' }, { hex: '#ff44aa' }, { hex: '#dddddd' },
 ];
 
-function renderCarCustomize(W, H, mx, my, clicked) {
+function renderCarCustomize(W, H, mx, my, clicked, vehicleType) {
+  const vehType = carConfig.vehicleType || 'f1';
+  const veh     = VEHICLE_DEFS[vehType] || VEHICLE_DEFS.f1;
   _bg();
-  _hdr('CUSTOMISE CAR', H * 0.07);
+  _hdr('CUSTOMISE – ' + veh.name, H * 0.07);
 
   const BTN_Y = H * 0.64;
   const BTN_H = H * 0.12;
@@ -306,16 +528,19 @@ function renderCarCustomize(W, H, mx, my, clicked) {
   const topY   = H * 0.11;
   const availH = BTN_Y - topY - _p(10);
 
-  // Car sprite
+  // Vehicle sprite (dispatch to correct draw fn)
   const carSz = Math.min(splitX * 0.52, availH * 0.38, _p(90));
   const carCX  = splitX / 2;
   const carCY  = topY + availH * 0.32;
-  drawF1Sprite(carCX, carCY, carSz, carConfig.color, carConfig.decal);
+  _drawVehiclePreview(vehType, carCX, carCY, carSz, carConfig.color, carConfig.decal);
 
-  // Cockpit nose preview
-  const npW = splitX * 0.72, npH = npW * 0.44;
-  const npX = splitX / 2 - npW / 2, npY = carCY + carSz * 0.32 + _p(5);
-  _nosePrev(npX, npY, npW, npH);
+  // Cockpit nose preview — only for F1 Classic (open cockpit)
+  // LMP1 (f1v2) has a closed canopy, NASCAR/moto don't have a traditional nose
+  if (vehType === 'f1') {
+    const npW = splitX * 0.72, npH = npW * 0.44;
+    const npX = splitX / 2 - npW / 2, npY = carCY + carSz * 0.32 + _p(5);
+    _nosePrev(npX, npY, npW, npH);
+  }
 
   // ── Controls ──────────────────────────────────────────────────────────
   // Colour label

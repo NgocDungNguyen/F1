@@ -15,9 +15,11 @@ function checkCollisions(raceTime) {
     // Only check nearby cars (within 2 segments)
     if (relZ > 2.5 || relZ < 0.1) continue;
 
-    // Lateral proximity (road-half-width units)
-    const latDiff = Math.abs(player.x - ai.x);
-    if (latDiff > 0.55) continue;               // not overlapping
+    // Combined hitbox: player radius + fixed AI radius (all AI are F1-class, radius 0.28)
+    const playerRadius = (VEHICLE_DEFS[carConfig.vehicleType] || VEHICLE_DEFS.f1).collisionRadius;
+    const hitRadius    = playerRadius + 0.28;
+    const latDiff      = Math.abs(player.x - ai.x);
+    if (latDiff > hitRadius) continue;
 
     // Collision!
     player.speed     *= CRASH_SPEED_MULT;

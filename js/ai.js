@@ -4,26 +4,31 @@
 
 let aiCars = [];
 
-const AI_COLORS  = ['#0033cc', '#ffcc00', '#00aa44'];
-const AI_DECALS  = ['solid',   'solid',   'solid'];
+// 6 distinct colors for up to 6 AI cars
+const AI_COLORS = ['#0033cc', '#ffcc00', '#00aa44', '#cc0044', '#aa44ff', '#ff8800'];
+const AI_DECALS = ['solid', 'solid', 'solid', 'solid', 'solid', 'solid'];
+
+// Starting gaps for up to 6 AI (segments ahead of player start position)
+const AI_GAPS = [14, 30, 52, 78, 108, 145];
 
 function initAI() {
   aiCars = [];
-  // Stagger AI ahead of player within visible draw distance
-  // so they're immediately visible and raceable
-  const startZ = player ? player.z : 8;
-  const gaps   = [18, 40, 70];   // segments ahead of player
+  const diff     = (typeof carConfig !== 'undefined' && carConfig.difficulty)
+                     ? carConfig.difficulty : 'medium';
+  const diffDef  = (typeof DIFFICULTY_DEFS !== 'undefined') ? DIFFICULTY_DEFS[diff] : null;
+  const aiCount  = diffDef ? diffDef.aiCount : AI_COUNT;
+  const startZ   = player ? player.z : 8;
 
-  for (let i = 0; i < AI_COUNT; i++) {
+  for (let i = 0; i < aiCount; i++) {
     aiCars.push({
-      z:           (startZ + gaps[i]) % TRACK_SEGMENTS,
-      x:           (i % 2 === 0 ? -0.28 : 0.28),
-      speed:       AI_MAX_SPEED * (0.80 + i * 0.03),
-      color:       AI_COLORS[i % AI_COLORS.length],
-      decal:       AI_DECALS[i % AI_DECALS.length],
-      laps:        0,
-      crashing:    false,
-      crashTimer:  0,
+      z:         (startZ + AI_GAPS[i % AI_GAPS.length]) % TRACK_SEGMENTS,
+      x:         (i % 2 === 0 ? -0.28 : 0.28),
+      speed:     AI_MAX_SPEED * (0.78 + (i % 3) * 0.04),
+      color:     AI_COLORS[i % AI_COLORS.length],
+      decal:     AI_DECALS[i % AI_DECALS.length],
+      laps:      0,
+      crashing:  false,
+      crashTimer: 0,
     });
   }
 }
@@ -42,17 +47,17 @@ function updateAI(dt) {
     const seg    = segments[segIdx];
     if (!seg) continue;
 
-    const curveMag   = Math.abs(seg.curve);
-    const targetSpd  = AI_MAX_SPEED * (1 - curveMag * 0.07);
-    const speedDiff  = targetSpd - ai.speed;
-    ai.speed        += clamp(speedDiff, -AI_ACCEL * dt * 2, AI_ACCEL * dt);
-    ai.speed         = clamp(ai.speed, 0, AI_MAX_SPEED);
+    const curveMag  = Math.abs(seg.curve);
+    const targetSpd = AI_MAX_SPEED * (1 - curveMag * 0.07);
+    const speedDiff = targetSpd - ai.speed;
+    ai.speed += clamp(speedDiff, -AI_ACCEL * dt * 2, AI_ACCEL * dt);
+    ai.speed  = clamp(ai.speed, 0, AI_MAX_SPEED);
 
-    // ── Steer toward preferred lane (rubberband slightly toward centre) ────
-    const laneTarget = (ai.x > 0 ? 0.35 : -0.35);
+    // ── Lane preference — avoid shortcut zones ────────────────────────────
+    const laneTarget = seg.isShortcut ? 0 : (ai.x > 0 ? 0.35 : -0.35);
     ai.x += (laneTarget - ai.x) * AI_STEER * dt * 0.4;
 
-    // ── Curve-induced drift (same as player) ──────────────────────────────
+    // ── Curve-induced drift ───────────────────────────────────────────────
     ai.x += seg.curve * (ai.speed / AI_MAX_SPEED) * 0.012 * dt * 60;
     ai.x  = clamp(ai.x, -ROAD_EDGE * 0.9, ROAD_EDGE * 0.9);
 
@@ -63,15 +68,11 @@ function updateAI(dt) {
   }
 }
 
-// Compute player race position (1-based).
-// raceData.lap is 1-indexed; ai.laps is completed-laps count (0-indexed).
 function computePosition() {
-  const playerDone = raceData.lap - 1;   // completed laps
+  const playerDone = raceData.lap - 1;
   let pos = 1;
   for (const ai of aiCars) {
-    if (ai.laps > playerDone || (ai.laps === playerDone && ai.z > player.z)) {
-      pos++;
-    }
+    if (ai.laps > playerDone || (ai.laps === playerDone && ai.z > player.z)) pos++;
   }
   return pos;
 }

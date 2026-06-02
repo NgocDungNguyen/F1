@@ -63,8 +63,9 @@ function renderHUD(W, H, data) {
   ctx.fillStyle = '#777'; ctx.font = `${_h(11)}px monospace`;
   ctx.fillText('km/h', spX + spW / 2, spY + _h(40));
 
-  // Speed bar
-  const maxKmh = Math.round(BOOST_SPEED * 23.5);
+  // Speed bar — max reference is the active vehicle's boost speed
+  const vehDef = (typeof VEHICLE_DEFS !== 'undefined' && carConfig) ? (VEHICLE_DEFS[carConfig.vehicleType] || VEHICLE_DEFS.f1) : null;
+  const maxKmh = Math.round((vehDef ? vehDef.boostSpeed : BOOST_SPEED) * 23.5);
   const frac   = clamp(kmh / maxKmh, 0, 1);
   const bX2 = spX + _h(8), bY2 = spY + spH - _h(14), bW2 = spW - _h(16), bH2 = _h(7);
   ctx.fillStyle = '#1a1a1a'; roundRect(ctx, bX2, bY2, bW2, bH2, 3, true, false);
@@ -91,7 +92,7 @@ function renderHUD(W, H, data) {
     ctx.fillStyle    = '#777'; ctx.font = `${_h(11)}px monospace`;
     ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(`BOOST  ${Math.ceil(boostCooldown)}s`, spX + spW / 2, bsY2 + bsH / 2);
-    const cdF = 1 - boostCooldown / BOOST_COOLDOWN;
+    const cdF = 1 - boostCooldown / (vehDef ? vehDef.boostCooldown : BOOST_COOLDOWN);
     ctx.fillStyle = '#336633';
     ctx.fillRect(spX + _h(7), bsY2 + bsH - _h(4), (spW - _h(14)) * cdF, _h(3));
   } else {
@@ -100,6 +101,103 @@ function renderHUD(W, H, data) {
     ctx.fillStyle    = '#00ee88'; ctx.font = `bold ${_h(11)}px monospace`;
     ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('BOOST READY', spX + spW / 2, bsY2 + bsH / 2);
+  }
+
+  // ── Vehicle-specific HUD panel (below boost strip) ────────────────────
+  const vsY = bsY2 + bsH + _h(6);
+  const vsH = _h(30);
+  const vt  = carConfig ? carConfig.vehicleType : 'f1';
+
+  if (vt === 'f1' || vt === 'f1v2') {
+    // F1 / LMP1: gear indicator + shift lights
+    const speedFrac = player ? (player.speed / ((vehDef ? vehDef.maxSpeed : 14))) : 0;
+    const gear = Math.max(1, Math.ceil(speedFrac * 7));
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    roundRect(ctx, spX, vsY, spW, vsH, _h(5), true, false);
+    ctx.fillStyle = '#ffcc00'; ctx.font = `bold ${_h(16)}px monospace`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('G' + gear, spX + _h(8), vsY + vsH / 2);
+    // 5 shift LEDs
+    const nLed = 5, ledW = (_h(12)), ledH = _h(7), ledGap = _h(3);
+    const ledX0 = spX + spW - nLed * (ledW + ledGap) - _h(6);
+    for (let i = 0; i < nLed; i++) {
+      const on = i < Math.ceil(speedFrac * nLed);
+      ctx.fillStyle = on ? (i < 3 ? '#00ee44' : (i < 4 ? '#ffaa00' : '#ff2200')) : '#1a1a1a';
+      roundRect(ctx, ledX0 + i * (ledW + ledGap), vsY + (vsH - ledH) / 2, ledW, ledH, 2, true, false);
+    }
+    // LMP1 ERS bar
+    if (vt === 'f1v2' && player) {
+      const ersY = vsY + vsH + _h(4);
+      const ersH = _h(16);
+      ctx.fillStyle = 'rgba(0,0,40,0.65)';
+      roundRect(ctx, spX, ersY, spW, ersH, _h(4), true, false);
+      ctx.fillStyle = '#0055ff'; ctx.lineWidth = 1;
+      roundRect(ctx, spX + _h(4), ersY + _h(3), (spW - _h(8)) * (player.ersCharge || 0), ersH - _h(6), _h(2), true, false);
+      ctx.fillStyle = '#88aaff'; ctx.font = `${_h(9)}px monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('ERS ' + Math.round((player.ersCharge || 0) * 100) + '%', spX + spW / 2, ersY + ersH / 2);
+    }
+
+  } else if (vt === 'nascar') {
+    // NASCAR: draft indicator + fuel gauge
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    roundRect(ctx, spX, vsY, spW, vsH, _h(5), true, false);
+    // Check if any AI is within 8 segments ahead
+    let inDraft = false;
+    if (player && aiCars) {
+      for (const ai of aiCars) {
+        let relZ = ai.z - player.z;
+        if (relZ < 0) relZ += TRACK_SEGMENTS;
+        if (relZ > 0 && relZ < 8 && Math.abs(ai.x - player.x) < 0.4) { inDraft = true; break; }
+      }
+    }
+    if (inDraft) {
+      ctx.fillStyle = '#ffcc00'; ctx.shadowColor = '#ffcc00'; ctx.shadowBlur = 6;
+      ctx.font = `bold ${_h(11)}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('▲ IN DRAFT', spX + spW / 2, vsY + vsH / 2);
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.fillStyle = '#445'; ctx.font = `${_h(10)}px monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('DRAFT: CLEAR', spX + spW / 2, vsY + vsH / 2);
+    }
+    // Fuel gauge
+    const fuelY = vsY + vsH + _h(4), fuelH = _h(12);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    roundRect(ctx, spX, fuelY, spW, fuelH, _h(3), true, false);
+    const fuel = player ? (player.fuel !== undefined ? player.fuel : 1.0) : 1.0;
+    ctx.fillStyle = fuel > 0.3 ? '#dd8800' : '#cc2200';
+    roundRect(ctx, spX + _h(4), fuelY + _h(2), (spW - _h(8)) * fuel, fuelH - _h(4), _h(2), true, false);
+    ctx.fillStyle = '#aaa'; ctx.font = `${_h(8)}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('FUEL', spX + spW / 2, fuelY + fuelH / 2);
+
+  } else if (vt === 'moto') {
+    // Motorcycle: lean angle gauge
+    const steer = player ? player.steeringAngle : 0;
+    const leanDeg = Math.round(steer * 38);
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    roundRect(ctx, spX, vsY, spW, vsH, _h(5), true, false);
+    // Lean arc gauge
+    const arcCX = spX + spW / 2;
+    const arcCY = vsY + vsH - _h(4);
+    const arcR  = _h(14);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = _h(4);
+    ctx.beginPath(); ctx.arc(arcCX, arcCY, arcR, Math.PI, 2 * Math.PI); ctx.stroke();
+    ctx.strokeStyle = Math.abs(leanDeg) > 25 ? '#ff4400' : '#00ffcc';
+    ctx.lineWidth   = _h(4);
+    ctx.beginPath();
+    ctx.arc(arcCX, arcCY, arcR, Math.PI, Math.PI + (steer + 0.45) / 0.9 * Math.PI);
+    ctx.stroke();
+    ctx.fillStyle = '#aaa'; ctx.font = `${_h(9)}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(Math.abs(leanDeg) + '° ' + (leanDeg < 0 ? '◀' : leanDeg > 0 ? '▶' : '—'), arcCX, vsY + _h(2));
+    // Wheelie warning
+    if (player && player.speed / (vehDef ? vehDef.maxSpeed : 17) > 0.92 && Math.abs(steer) < 0.05) {
+      ctx.fillStyle = '#ff8800'; ctx.font = `bold ${_h(9)}px monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⚠ WHEELIE', arcCX, vsY + vsH / 2);
+    }
   }
 
   // ── Crash overlay ───────────────────────────────────────────────────

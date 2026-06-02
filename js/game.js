@@ -9,8 +9,8 @@ let W = 0, H = 0;
 // ── Game State ────────────────────────────────────────────────────────────
 let STATE         = 'MENU';
 let selectedTrack = 0;
-let carConfig     = { color: '#e8001c', decal: 'stripes' };
-let viewMode      = VIEW_1ST;          // VIEW_1ST | VIEW_3RD  (toggled with V)
+let carConfig     = { color: '#e8001c', decal: 'stripes', vehicleType: 'f1', difficulty: 'medium' };
+let viewMode      = VIEW_1ST;
 
 let raceData = {
   lap: 1, raceTime: 0, lapStartTime: 0,
@@ -22,8 +22,6 @@ let mouseX = 0, mouseY = 0;
 let clickedThisFrame = false;
 
 // ── Resize ────────────────────────────────────────────────────────────────
-// Use visualViewport when available – it returns the VISIBLE area excluding
-// the browser URL bar, nav bar, and keyboard, fixing layout on Android/iOS.
 function resize() {
   const vv = window.visualViewport;
   const nw = vv ? Math.round(vv.width)  : window.innerWidth;
@@ -40,7 +38,7 @@ function checkOrientation() {
 }
 
 function updateMobileControls() {
-  const mctrl   = document.getElementById('mobileControls');
+  const mctrl = document.getElementById('mobileControls');
   if (!mctrl) return;
   const portrait = IS_MOBILE && window.innerHeight > window.innerWidth;
   const inGame   = ['COUNTDOWN','RACING','PAUSED'].includes(STATE);
@@ -67,7 +65,6 @@ function getEffectivePlayerX() {
 }
 
 function setViewHorizon() {
-  // 3rd-person: lower horizon (more road visible, camera "higher")
   horizonFrac = (viewMode === VIEW_3RD) ? HORIZON_FRAC - 0.06 : HORIZON_FRAC;
 }
 
@@ -76,6 +73,7 @@ function startRace() {
   buildTrack(selectedTrack);
   initPlayer();
   initAI();
+  initWeather();
   lastCrashTime = -5;
   raceData = { lap:1, raceTime:0, lapStartTime:0, lapTimes:[], position:1, countdownT:0 };
   STATE    = 'COUNTDOWN';
@@ -95,6 +93,8 @@ function checkLap(prevZ) {
     finishData = { totalTime: raceData.raceTime, lapTimes: raceData.lapTimes, position: raceData.position };
     STATE = 'FINISH';
     silenceEngine();
+    stopRainAmbient();
+    stopWindAmbient();
     playFinishFanfare();
   }
 }
@@ -107,15 +107,18 @@ function update(dt) {
       if (raceData.countdownT >= 5) STATE = 'RACING';
       break;
 
-    case 'RACING':
+    case 'RACING': {
       raceData.raceTime += dt;
       const prevZ = player.z;
       updatePlayer(dt, getInput());
       updateAI(dt);
+      updateWeather(dt);
       checkCollisions(raceData.raceTime);
+      checkFlyingObjectCollisions();
       checkLap(prevZ);
       raceData.position = computePosition();
       break;
+    }
   }
 }
 
@@ -127,7 +130,7 @@ function render() {
 
     case 'MENU': {
       const a = renderMenu(W, H, raceData.raceTime, mouseX, mouseY, clickedThisFrame);
-      if (a === 'PLAY') STATE = 'TRACK_SELECT';
+      if (a === 'PLAY') STATE = 'DIFFICULTY_SELECT';
       if (a === 'HOW')  STATE = 'HOW';
       break;
     }
@@ -138,23 +141,43 @@ function render() {
       break;
     }
 
+    case 'DIFFICULTY_SELECT': {
+      const a = renderDifficultySelect(W, H, mouseX, mouseY, clickedThisFrame, carConfig.difficulty);
+      if (a) {
+        if (typeof a === 'object' && a.difficulty) carConfig.difficulty = a.difficulty;
+        if (a === 'NEXT') STATE = 'TRACK_SELECT';
+        if (a === 'BACK') STATE = 'MENU';
+      }
+      break;
+    }
+
     case 'TRACK_SELECT': {
       const a = renderTrackSelect(W, H, mouseX, mouseY, clickedThisFrame, selectedTrack);
       if (a) {
         if (a.type === 'SELECT') selectedTrack = a.idx;
-        if (a.type === 'NEXT')   STATE = 'CAR_CUSTOMIZE';
-        if (a.type === 'BACK')   STATE = 'MENU';
+        if (a.type === 'NEXT')   STATE = 'VEHICLE_SELECT';
+        if (a.type === 'BACK')   STATE = 'DIFFICULTY_SELECT';
+      }
+      break;
+    }
+
+    case 'VEHICLE_SELECT': {
+      const a = renderVehicleSelect(W, H, mouseX, mouseY, clickedThisFrame, carConfig.vehicleType);
+      if (a) {
+        if (typeof a === 'object' && a.vehicleType) carConfig.vehicleType = a.vehicleType;
+        if (a === 'NEXT') STATE = 'CAR_CUSTOMIZE';
+        if (a === 'BACK') STATE = 'TRACK_SELECT';
       }
       break;
     }
 
     case 'CAR_CUSTOMIZE': {
-      const a = renderCarCustomize(W, H, mouseX, mouseY, clickedThisFrame);
+      const a = renderCarCustomize(W, H, mouseX, mouseY, clickedThisFrame, carConfig.vehicleType);
       if (a) {
         if (typeof a === 'string' && a.startsWith('#')) carConfig.color = a;
         if (typeof a === 'object' && a.decal)           carConfig.decal = a.decal;
         if (a === 'START') startRace();
-        if (a === 'BACK')  STATE = 'TRACK_SELECT';
+        if (a === 'BACK')  STATE = 'VEHICLE_SELECT';
       }
       break;
     }
@@ -171,7 +194,7 @@ function render() {
         _renderRaceHUD();
         const pa = renderPause(W, H, mouseX, mouseY, clickedThisFrame);
         if (pa === 'RESUME') STATE = 'RACING';
-        if (pa === 'MENU')   { STATE = 'MENU'; silenceEngine(); }
+        if (pa === 'MENU')   { STATE = 'MENU'; silenceEngine(); stopRainAmbient(); stopWindAmbient(); }
       }
       break;
     }
@@ -192,25 +215,22 @@ function _renderRaceScene() {
   const pZ  = player ? player.z : 0;
   const ePX = getEffectivePlayerX();
 
-  // Set horizon based on view mode
   setViewHorizon();
 
-  // Write effective X for scanline renderer
-  _effectivePlayerX = ePX;
+  // Apply weather visibility — shorten effective draw distance at night/blizzard
+  const visScale = (typeof weatherState !== 'undefined') ? weatherState.visibility : 1.0;
+  _weatherVisibility = visScale;
 
-  // Project
+  _effectivePlayerX = ePX;
   projectRoad(pZ, ePX, W, H);
 
-  // Sky + ground
   renderSkyAndBackground(W, H);
-
-  // Road
   renderRoad(W, H);
-
-  // AI cars (always drawn regardless of view)
   renderAICars(W, H);
 
-  // View-specific layer
+  // Weather overlay (particles, sky tint) — drawn over road but under cockpit
+  if (typeof renderWeatherOverlay === 'function') renderWeatherOverlay(W, H);
+
   if (viewMode === VIEW_1ST) {
     renderCockpit(W, H);
   } else {
@@ -218,7 +238,7 @@ function _renderRaceScene() {
   }
 }
 
-// ── Race HUD (drawn after scene) ──────────────────────────────────────────
+// ── Race HUD ──────────────────────────────────────────────────────────────
 function _renderRaceHUD() {
   renderHUD(W, H, {
     speed:         player ? player.speed        : 0,
@@ -230,26 +250,37 @@ function _renderRaceHUD() {
     boosting:      player ? player.boosting     : false,
   });
 
-  // Minimap
   renderMinimap(W, H, player ? player.z : 0);
 
-  // View mode indicator (small badge)
+  // Weather status badge (top-center, below lap counter)
+  if (typeof weatherState !== 'undefined' && weatherState.current !== 'sunny') {
+    const wIcons = { rain:'🌧️', snow:'❄️', storm:'⛈️', sandstorm:'🌪️', tropical_storm:'🌊', tornado:'🌪️' };
+    const icon   = wIcons[weatherState.current] || '';
+    if (icon) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      roundRect(ctx, W/2 - 36, 54, 72, 22, 5, true, false);
+      ctx.fillStyle = '#ffcc00'; ctx.font = '13px monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(icon + ' ' + weatherState.current.toUpperCase().replace('_',' '), W/2, 65);
+      ctx.restore();
+    }
+  }
+
+  // View mode badge
   ctx.save();
   ctx.fillStyle    = 'rgba(0,0,0,0.55)';
   roundRect(ctx, W / 2 - 52, H * 0.695, 104, 22, 5, true, false);
   ctx.fillStyle    = viewMode === VIEW_1ST ? '#88ccff' : '#ffcc44';
   ctx.font         = 'bold 12px monospace';
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(
-    viewMode === VIEW_1ST ? '🎥 1ST PERSON  [V]' : '🎥 3RD PERSON  [V]',
-    W / 2, H * 0.695 + 11
-  );
+  ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(viewMode === VIEW_1ST ? '🎥 1ST PERSON  [V]' : '🎥 3RD PERSON  [V]', W/2, H*0.695+11);
   ctx.restore();
 }
 
 // ── MAIN LOOP ──────────────────────────────────────────────────────────────
 let lastTs = 0, lastState = '';
+let _weatherVisibility = 1.0;  // read by renderer for draw-distance clipping
 
 function loop(ts) {
   const dt = Math.min((ts - lastTs) / 1000, 0.05);
@@ -266,7 +297,7 @@ function loop(ts) {
 canvas.addEventListener('mousemove', e  => { mouseX = e.clientX; mouseY = e.clientY; });
 canvas.addEventListener('mousedown', e  => { mouseX = e.clientX; mouseY = e.clientY; clickedThisFrame = true; resumeAudio(); });
 canvas.addEventListener('touchstart', e => { if (e.touches.length > 0) { mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; } resumeAudio(); }, { passive: true });
-canvas.addEventListener('touchend', e   => { if (e.changedTouches.length > 0) { mouseX = e.changedTouches[0].clientX; mouseY = e.changedTouches[0].clientY; clickedThisFrame = true; } }, { passive: true });
+canvas.addEventListener('touchend',   e => { if (e.changedTouches.length > 0) { mouseX = e.changedTouches[0].clientX; mouseY = e.changedTouches[0].clientY; clickedThisFrame = true; } }, { passive: true });
 
 // ── INIT ───────────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {

@@ -6,21 +6,26 @@ let player = null;
 
 function initPlayer() {
   player = {
-    z:              8,           // track position (segment index, fractional)
-    x:              0,           // lateral position: 0=centre, ±1=road edge
-    speed:          0,           // segments/sec
-    steeringAngle:  0,           // wheel visual angle (radians)
+    z:              8,
+    x:              0,
+    speed:          0,
+    steeringAngle:  0,
     boosting:       false,
-    boostTimer:     0,           // seconds remaining on active boost
-    boostCooldown:  0,           // seconds until boost is ready
-    crashTimer:     0,           // seconds of crash state remaining
-    offRoadTimer:   0,           // seconds off-road (for sound/visual)
+    boostTimer:     0,
+    boostCooldown:  0,
+    crashTimer:     0,
+    offRoadTimer:   0,
     laps:           0,
+    ersCharge:      1.0,   // LMP1 ERS charge 0–1
+    fuel:           1.0,   // NASCAR fuel 0–1 (cosmetic)
   };
 }
 
 function updatePlayer(dt, inp) {
   if (!player) return;
+
+  // Per-vehicle physics parameters
+  const veh = VEHICLE_DEFS[carConfig.vehicleType] || VEHICLE_DEFS.f1;
 
   // ── Boost logic ────────────────────────────────────────────────────────
   if (player.boostTimer > 0) {
@@ -34,8 +39,8 @@ function updatePlayer(dt, inp) {
   if (player.boostCooldown > 0) player.boostCooldown -= dt;
 
   if (inp.boost && !player.boosting && player.boostCooldown <= 0) {
-    player.boostTimer    = BOOST_DURATION;
-    player.boostCooldown = BOOST_COOLDOWN;
+    player.boostTimer    = veh.boostDuration;
+    player.boostCooldown = veh.boostCooldown;
     player.boosting      = true;
     playBoostSound();
   }
@@ -44,27 +49,61 @@ function updatePlayer(dt, inp) {
   if (player.crashTimer > 0) {
     player.crashTimer -= dt;
     player.speed      *= 1 - dt * 3.5;
-    updateEngineSound(player.speed / PLAYER_MAX_SPEED);
-    return;                                       // skip normal physics
+    updateEngineSound(player.speed / veh.maxSpeed);
+    return;
   }
 
   // ── Speed ──────────────────────────────────────────────────────────────
-  const maxSpd = player.boosting ? BOOST_SPEED : PLAYER_MAX_SPEED;
+  const maxSpd = player.boosting ? veh.boostSpeed : veh.maxSpeed;
 
   if (inp.gas) {
-    player.speed = Math.min(player.speed + PLAYER_ACCEL * dt, maxSpd);
+    player.speed = Math.min(player.speed + veh.accel * dt, maxSpd);
   } else if (inp.brake) {
-    player.speed = Math.max(player.speed - PLAYER_BRAKE * dt, 0);
+    player.speed = Math.max(player.speed - veh.brake * dt, 0);
   } else {
-    player.speed = Math.max(player.speed - PLAYER_COAST * dt, 0);
+    player.speed = Math.max(player.speed - veh.coast * dt, 0);
   }
 
-  // ── Steering ───────────────────────────────────────────────────────────
-  const speedFrac   = player.speed / PLAYER_MAX_SPEED;
-  const steerAmount = STEER_SPEED * dt * Math.max(0.35, 1 - speedFrac * 0.5);
+  // ── Weather grip ───────────────────────────────────────────────────────
+  const wetGrip = (typeof weatherState !== 'undefined') ? weatherState.gripFactor : 1.0;
+
+  // ── Steering (speed-dependent authority, reduced by wet grip) ──────────
+  const speedFrac   = player.speed / veh.maxSpeed;
+  const steerFactor = Math.max(veh.minSteer, 1 - speedFrac * 0.58);
+  const steerAmount = veh.steerSpeed * dt * steerFactor * wetGrip;
 
   if (inp.left)        player.x -= steerAmount;
   else if (inp.right)  player.x += steerAmount;
+
+  // Wet-road micro-sliding (random drift when road is wet and driving fast)
+  if (typeof weatherState !== 'undefined' && weatherState.roadWet && speedFrac > 0.55) {
+    player.x += (Math.random() - 0.5) * 0.003 * (1 - wetGrip) * speedFrac;
+  }
+
+  // High-speed cornering drag — simulates centripetal force / tyre load
+  if ((inp.left || inp.right) && speedFrac > 0.65) {
+    const drag = ((speedFrac - 0.65) / 0.35) * veh.cornerDrag;
+    player.speed = Math.max(player.speed * (1 - drag * dt), veh.maxSpeed * 0.72);
+  }
+
+  // Road stickiness — at high speed, subtle straight-line centering force
+  if (!inp.left && !inp.right && speedFrac > 0.70) {
+    player.x *= (1 - dt * 0.08 * speedFrac);
+  }
+
+  // ── LMP1 ERS charge ────────────────────────────────────────────────────
+  if (carConfig.vehicleType === 'f1v2') {
+    if (inp.gas && player.boosting) {
+      player.ersCharge = Math.max(0, player.ersCharge - dt * 0.15);
+    } else if (!inp.gas) {
+      player.ersCharge = Math.min(1, player.ersCharge + dt * 0.08);  // regen
+    }
+  }
+
+  // ── NASCAR fuel (cosmetic) ─────────────────────────────────────────────
+  if (carConfig.vehicleType === 'nascar' && player.speed > 0) {
+    player.fuel = Math.max(0, player.fuel - dt * 0.0008);
+  }
 
   // Steering wheel visual
   const targetAngle = inp.left ? -0.45 : (inp.right ? 0.45 : 0);
@@ -82,8 +121,9 @@ function updatePlayer(dt, inp) {
 
   if (isOffRoad) {
     player.offRoadTimer += dt;
-    player.speed        *= Math.pow(OFFROAD_FRICTION, dt * 8);
-    // Hard boundary
+    // Sharper initial bite when hitting grass at speed
+    player.speed *= Math.pow(OFFROAD_FRICTION, dt * 11);
+    if (player.speed > veh.maxSpeed * 0.52) player.speed = veh.maxSpeed * 0.52;
     player.x = clamp(player.x, -GRASS_EDGE, GRASS_EDGE);
   } else {
     player.offRoadTimer = 0;
@@ -93,5 +133,5 @@ function updatePlayer(dt, inp) {
   player.z = (player.z + player.speed * dt) % TRACK_SEGMENTS;
 
   // ── Audio ──────────────────────────────────────────────────────────────
-  updateEngineSound(player.speed / (player.boosting ? BOOST_SPEED : PLAYER_MAX_SPEED));
+  updateEngineSound(player.speed / (player.boosting ? veh.boostSpeed : veh.maxSpeed));
 }
