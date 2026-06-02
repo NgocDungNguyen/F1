@@ -155,10 +155,10 @@ function updateWeather(dt) {
   weatherState.flyingObjects = weatherState.flyingObjects.filter(o => {
     o.x  += o.vx * dt;
     o.y  += o.vy * dt;
-    o.vy += 60 * dt;   // gravity arc
+    o.vy += 55 * dt;   // gravity arc
     o.rotation += o.rotSpeed * dt;
     o.life -= dt;
-    return o.life > 0 && o.y < scrH + 50;
+    return o.life > 0 && o.y < scrH + 60 && o.x > -80 && o.x < scrW + 80;
   });
 }
 
@@ -192,17 +192,20 @@ function _spawnParticle(type) {
 function _spawnFlyingObject() {
   const scrW = (typeof W !== 'undefined') ? W : 400;
   const scrH = (typeof H !== 'undefined') ? H : 700;
-  const side = Math.random() < 0.5;
+  const side  = Math.random() < 0.5;
+  // Randomise object type: plank, rock, barrel, sign
+  const types = ['plank', 'rock', 'barrel', 'sign'];
+  const objType = types[Math.floor(Math.random() * types.length)];
   return {
-    x:        side ? -30 : scrW + 30,
-    y:        scrH * (0.35 + Math.random() * 0.30),
-    vx:       side ? (80 + Math.random() * 120) : -(80 + Math.random() * 120),
-    vy:       -(30 + Math.random() * 80),
+    x:        side ? -50 : scrW + 50,
+    y:        scrH * (0.38 + Math.random() * 0.28),  // stay in road/car zone
+    vx:       side ? (140 + Math.random() * 160) : -(140 + Math.random() * 160),
+    vy:       -(20 + Math.random() * 60),
     rotation: Math.random() * Math.PI * 2,
-    rotSpeed: (Math.random() - 0.5) * 6,
-    size:     12 + Math.random() * 20,
-    life:     2.5 + Math.random(),
-    shape:    Math.random() < 0.5 ? 'rect' : 'circle',
+    rotSpeed: (Math.random() - 0.5) * 8,
+    size:     22 + Math.random() * 22,   // larger: 22–44px
+    life:     2.2 + Math.random() * 0.8,
+    objType,
   };
 }
 
@@ -312,18 +315,131 @@ function renderWeatherOverlay(W, H) {
     }
   }
 
-  // ── Flying objects ────────────────────────────────────────────────────
+  // ── Flying objects — bright, outlined, clearly visible ──────────────────
   for (const o of ws.flyingObjects) {
     ctx.save();
-    ctx.globalAlpha = Math.min(1, o.life * 0.7);
+    // Only fade in the final 0.35 seconds so objects stay fully visible while crossing
+    ctx.globalAlpha = o.life > 0.35 ? 1.0 : o.life / 0.35;
     ctx.translate(o.x, o.y);
     ctx.rotate(o.rotation);
-    ctx.fillStyle = '#2a1a08';
-    if (o.shape === 'rect') {
-      ctx.fillRect(-o.size/2, -o.size/4, o.size, o.size/2);
-    } else {
-      ctx.beginPath(); ctx.arc(0, 0, o.size/2, 0, Math.PI*2); ctx.fill();
+
+    const s = o.size;
+
+    switch (o.objType) {
+      case 'plank': {
+        // Wooden plank — bright orange-brown rectangle with wood grain lines
+        ctx.fillStyle = '#d4820a';
+        ctx.fillRect(-s * 0.50, -s * 0.18, s, s * 0.36);
+        // Wood grain
+        ctx.strokeStyle = '#8b4a05'; ctx.lineWidth = Math.max(1, s * 0.04);
+        for (let g = -s * 0.35; g < s * 0.45; g += s * 0.18) {
+          ctx.beginPath(); ctx.moveTo(g, -s * 0.18); ctx.lineTo(g, s * 0.18); ctx.stroke();
+        }
+        // Bold bright outline
+        ctx.strokeStyle = '#ffcc44'; ctx.lineWidth = Math.max(2, s * 0.07);
+        ctx.strokeRect(-s * 0.50, -s * 0.18, s, s * 0.36);
+        break;
+      }
+      case 'rock': {
+        // Jagged grey rock — irregular polygon with light sheen
+        ctx.fillStyle = '#888888';
+        ctx.beginPath();
+        const pts = [
+          [0, -s * 0.50], [s * 0.36, -s * 0.26], [s * 0.44, s * 0.10],
+          [s * 0.20, s * 0.46], [-s * 0.22, s * 0.44], [-s * 0.46, s * 0.08],
+          [-s * 0.38, -s * 0.30],
+        ];
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        pts.slice(1).forEach(([px, py]) => ctx.lineTo(px, py));
+        ctx.closePath(); ctx.fill();
+        // Light face
+        ctx.fillStyle = '#bbbbbb';
+        ctx.beginPath();
+        ctx.moveTo(0, -s * 0.42); ctx.lineTo(s * 0.22, -s * 0.18);
+        ctx.lineTo(s * 0.10, s * 0.10); ctx.lineTo(-s * 0.18, -s * 0.06);
+        ctx.closePath(); ctx.fill();
+        // Bright outline
+        ctx.strokeStyle = '#eeeeee'; ctx.lineWidth = Math.max(2, s * 0.07);
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        pts.slice(1).forEach(([px, py]) => ctx.lineTo(px, py));
+        ctx.closePath(); ctx.stroke();
+        break;
+      }
+      case 'barrel': {
+        // Blue/red barrel — circle with bands
+        ctx.fillStyle = '#cc2200';
+        ctx.beginPath(); ctx.arc(0, 0, s * 0.44, 0, Math.PI * 2); ctx.fill();
+        // White bands
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, s * 0.08);
+        ctx.beginPath(); ctx.arc(0, 0, s * 0.32, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = Math.max(1, s * 0.05);
+        ctx.beginPath(); ctx.arc(0, 0, s * 0.20, 0, Math.PI * 2); ctx.stroke();
+        // Bright outer ring
+        ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = Math.max(2, s * 0.08);
+        ctx.beginPath(); ctx.arc(0, 0, s * 0.44, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case 'sign': {
+        // Yellow warning diamond sign
+        ctx.fillStyle = '#ffdd00';
+        ctx.beginPath();
+        ctx.moveTo(0, -s * 0.50);
+        ctx.lineTo( s * 0.44, 0);
+        ctx.lineTo(0,  s * 0.50);
+        ctx.lineTo(-s * 0.44, 0);
+        ctx.closePath(); ctx.fill();
+        // Black border
+        ctx.strokeStyle = '#111111'; ctx.lineWidth = Math.max(2, s * 0.07);
+        ctx.stroke();
+        // Exclamation mark
+        ctx.fillStyle = '#111111';
+        ctx.font = `bold ${Math.round(s * 0.44)}px monospace`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('!', 0, 0);
+        break;
+      }
     }
+
+    // Danger glow — red shadow when object is in the car-impact zone
+    const _W2 = (typeof W !== 'undefined' && W > 0) ? W : 400;
+    const _H2 = (typeof H !== 'undefined' && H > 0) ? H : 700;
+    if (o.x > _W2 * 0.30 && o.x < _W2 * 0.70 && o.y > _H2 * 0.60) {
+      ctx.shadowColor = '#ff2200';
+      ctx.shadowBlur  = s * 0.80;
+      // Redraw outline to trigger glow
+      ctx.strokeStyle = 'rgba(255,50,0,0.0)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.50, 0, Math.PI * 2); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    ctx.restore();
+  }
+
+  // ── Warning indicator when a flying object is heading toward the car ─────
+  const _W3 = (typeof W !== 'undefined' && W > 0) ? W : 400;
+  const _H3 = (typeof H !== 'undefined') ? H : 700;
+  for (const o of ws.flyingObjects) {
+    // Only warn when the object is in the air approaching the car lane
+    if (o.y < _H3 * 0.60 || o.life < 0.4) continue;
+    const inLane = o.x > _W3 * 0.25 && o.x < _W3 * 0.75;
+    if (!inLane) continue;
+    // Arrow pointing from top of screen down toward the object
+    const arrowX = Math.max(_W3 * 0.12, Math.min(_W3 * 0.88, o.x));
+    const pulse   = 0.6 + 0.4 * Math.sin(Date.now() * 0.012);
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle   = '#ff3300';
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth   = 2;
+    // Downward triangle arrow at top of screen
+    const ay = Math.max(36, o.y - _H3 * 0.28);
+    ctx.beginPath();
+    ctx.moveTo(arrowX,        ay);
+    ctx.lineTo(arrowX - 10,   ay - 16);
+    ctx.lineTo(arrowX + 10,   ay - 16);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
     ctx.restore();
   }
 
