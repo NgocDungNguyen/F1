@@ -200,6 +200,112 @@ function renderHUD(W, H, data) {
     }
   }
 
+  // ── Active item effects (right column, below vehicle panel) ───────────
+  if (player && typeof ITEM_DEFS !== 'undefined') {
+    // Compute bottom of vehicle panel
+    let itemY = vsY + vsH + _h(8);
+    if (vt === 'f1v2') itemY += _h(16) + _h(4);
+    if (vt === 'nascar') itemY += _h(12) + _h(4);
+
+    const iW = spW, iH = _h(20);
+
+    // Dragon boost timer — bright red/gold glow bar
+    if (player.dragonTimer > 0) {
+      const frac = player.dragonTimer / 4.0;
+      ctx.fillStyle = 'rgba(80,10,0,0.80)';
+      roundRect(ctx, spX, itemY, iW, iH, _h(4), true, false);
+      ctx.fillStyle = `rgba(255,${Math.floor(80 + 120 * frac)},0,0.9)`;
+      roundRect(ctx, spX + _h(3), itemY + _h(3), (iW - _h(6)) * frac, iH - _h(6), _h(2), true, false);
+      ctx.fillStyle = '#ffdd44'; ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 8;
+      ctx.font = `bold ${_h(10)}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🐉 DRAGON  ' + player.dragonTimer.toFixed(1) + 's', spX + iW / 2, itemY + iH / 2);
+      ctx.shadowBlur = 0;
+      itemY += iH + _h(4);
+    }
+
+    // Turbo timer bar
+    if (player.turboTimer > 0) {
+      const frac = player.turboTimer / ITEM_DEFS.turbo.duration;
+      ctx.fillStyle = 'rgba(40,20,0,0.80)';
+      roundRect(ctx, spX, itemY, iW, iH, _h(4), true, false);
+      ctx.fillStyle = '#ff7700';
+      roundRect(ctx, spX + _h(3), itemY + _h(3), (iW - _h(6)) * frac, iH - _h(6), _h(2), true, false);
+      ctx.fillStyle = '#ffe088'; ctx.font = `bold ${_h(10)}px monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('TURBO  ' + player.turboTimer.toFixed(1) + 's', spX + iW / 2, itemY + iH / 2);
+      itemY += iH + _h(4);
+    }
+
+    // Grip timer bar
+    if (player.gripTimer > 0) {
+      const frac = player.gripTimer / ITEM_DEFS.grip.duration;
+      ctx.fillStyle = 'rgba(0,30,10,0.80)';
+      roundRect(ctx, spX, itemY, iW, iH, _h(4), true, false);
+      ctx.fillStyle = '#40ff70';
+      roundRect(ctx, spX + _h(3), itemY + _h(3), (iW - _h(6)) * frac, iH - _h(6), _h(2), true, false);
+      ctx.fillStyle = '#ccffdd'; ctx.font = `bold ${_h(10)}px monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('MAX GRIP  ' + player.gripTimer.toFixed(1) + 's', spX + iW / 2, itemY + iH / 2);
+      itemY += iH + _h(4);
+    }
+
+    // Cool timer bar
+    if (player.coolTimer > 0) {
+      const frac = player.coolTimer / ITEM_DEFS.cool.duration;
+      ctx.fillStyle = 'rgba(0,20,40,0.80)';
+      roundRect(ctx, spX, itemY, iW, iH, _h(4), true, false);
+      ctx.fillStyle = '#40d8ff';
+      roundRect(ctx, spX + _h(3), itemY + _h(3), (iW - _h(6)) * frac, iH - _h(6), _h(2), true, false);
+      ctx.fillStyle = '#ccefff'; ctx.font = `bold ${_h(10)}px monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('COOLING  ' + player.coolTimer.toFixed(1) + 's', spX + iW / 2, itemY + iH / 2);
+      itemY += iH + _h(4);
+    }
+
+    // Shield icon
+    if (player.shield) {
+      ctx.fillStyle = 'rgba(60,50,0,0.80)';
+      roundRect(ctx, spX, itemY, iW, iH, _h(4), true, false);
+      ctx.fillStyle = '#ffd700'; ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 6;
+      ctx.font = `bold ${_h(11)}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🛡 SHIELD ACTIVE', spX + iW / 2, itemY + iH / 2);
+      ctx.shadowBlur = 0;
+      itemY += iH + _h(4);
+    }
+  }
+
+  // ── Sahara heat gauge ───────────────────────────────────────────────────
+  if (player && currentTrackDef && currentTrackDef.bgObjects === 'desert') {
+    const htX = spX, htW = spW, htH = _h(22);
+    // Position below item effects if any, otherwise below vehicle panel
+    let htY = vsY + vsH + _h(8);
+    if (vt === 'f1v2')  htY += _h(20);
+    if (vt === 'nascar') htY += _h(16);
+    // Stack below item timers dynamically — use bottom of screen fallback
+    htY = Math.max(htY, H * 0.58);
+
+    const heat = player.heat || 0;
+    const r = Math.floor(lerp(20, 220, heat));
+    const g = Math.floor(lerp(180, 20, heat));
+    ctx.fillStyle = 'rgba(0,0,0,0.68)';
+    roundRect(ctx, htX, htY, htW, htH, _h(4), true, false);
+    ctx.fillStyle = `rgb(${r},${g},18)`;
+    roundRect(ctx, htX + _h(4), htY + _h(4), (htW - _h(8)) * heat, htH - _h(8), _h(2), true, false);
+    ctx.fillStyle = heat > 0.85 ? '#ff4400' : '#ffaa44';
+    ctx.font = `bold ${_h(9)}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(heat > 0.85 ? '⚠ OVERHEAT' : 'ENGINE TEMP', htX + htW / 2, htY + htH / 2);
+  }
+
+  // ── Slipstream indicator (Monza) ────────────────────────────────────────
+  if (player && player.slipstreaming) {
+    ctx.fillStyle = 'rgba(0,20,60,0.75)';
+    roundRect(ctx, W / 2 - _h(90), H * 0.55, _h(180), _h(28), _h(6), true, false);
+    ctx.fillStyle = '#88ddff'; ctx.shadowColor = '#44aaff'; ctx.shadowBlur = 10;
+    ctx.font = `bold ${_h(13)}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⚡ SLIPSTREAM +12%', W / 2, H * 0.55 + _h(14));
+    ctx.shadowBlur = 0;
+  }
+
   // ── Crash overlay ───────────────────────────────────────────────────
   if (player && player.crashTimer > 0) {
     ctx.fillStyle = `rgba(255,50,0,${Math.min(0.45, player.crashTimer * 0.42)})`;

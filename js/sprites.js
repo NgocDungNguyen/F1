@@ -507,8 +507,8 @@ function renderAICars(W, H) {
     const aiScreenX = p.centerX + ai.x * p.rHalf;
     const aiScreenY = p.screenY;
 
-    // 0.90 keeps AI cars visually narrow — close vehicles won't fill 2 lanes
-    const spriteW   = p.rHalf * 0.90;
+    // 0.42 = roughly one lane wide; 0.90 was too wide (filled 2 lanes)
+    const spriteW   = p.rHalf * 0.42;
     if (spriteW < 6) continue;
 
     drawF1Sprite(aiScreenX, aiScreenY, spriteW, ai.color, ai.decal);

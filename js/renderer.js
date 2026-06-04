@@ -14,7 +14,10 @@ function projectRoad(playerZ, effectivePlayerX, W, H) {
   const roadBase = H * (1 - horizonFrac);
   // Visibility scale: weather/night can shorten draw distance
   const visScale = (typeof _weatherVisibility !== 'undefined') ? _weatherVisibility : 1.0;
-  const drawDist = Math.round(DRAW_DISTANCE * Math.max(0.35, visScale));
+  let drawDist = Math.round(DRAW_DISTANCE * Math.max(0.35, visScale));
+  // Fog zone (Monaco tunnel / Mountain Pass fog / Sahara sandstorm pocket) collapses visibility
+  const startSeg = segments[startIdx];
+  if (startSeg && startSeg.fogZone) drawDist = Math.min(drawDist, 35);
 
   _projected = [];
   let curveX = 0;
@@ -55,10 +58,36 @@ function renderSkyAndBackground(W, H) {
   }
 
   switch (def.bgObjects) {
-    case 'buildings': _drawBuildings(W, horizon, camShift); break;
-    case 'mountains': _drawMountains(W, horizon, camShift); break;
-    case 'jungle':    _drawJungle(W, horizon, camShift);    break;
-    default:          _drawForest(W, horizon, camShift);    break;
+    case 'buildings': _drawBuildings(W, horizon, camShift);  break;
+    case 'mountains': _drawMountains(W, horizon, camShift);  break;
+    case 'jungle':    _drawJungle(W, horizon, camShift);     break;
+    case 'desert':    _drawDesert(W, horizon, camShift);     break;
+    case 'greatwall': _drawGreatWall(W, horizon, camShift);  break;
+    default:          _drawForest(W, horizon, camShift);     break;
+  }
+
+  // Sahara sandstorm pocket — dense sand tint when in a fogZone on desert track
+  if (player && def.bgObjects === 'desert') {
+    const pIdx = Math.floor(player.z) % TRACK_SEGMENTS;
+    const pSeg = segments[pIdx];
+    if (pSeg && pSeg.fogZone) {
+      ctx.fillStyle = 'rgba(160,90,10,0.40)';
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // Monaco tunnel — dark overlay when in fogZone on buildings track
+  if (player && def.bgObjects === 'buildings') {
+    const pIdx = Math.floor(player.z) % TRACK_SEGMENTS;
+    const pSeg = segments[pIdx];
+    if (pSeg && pSeg.fogZone) {
+      ctx.fillStyle = 'rgba(0,0,10,0.60)';
+      ctx.fillRect(0, 0, W, H);
+      // Tunnel edge lights
+      ctx.fillStyle = 'rgba(255,200,80,0.25)';
+      ctx.fillRect(0, horizon * 0.6, 18, horizon * 0.4);
+      ctx.fillRect(W - 18, horizon * 0.6, 18, horizon * 0.4);
+    }
   }
 }
 
@@ -184,6 +213,113 @@ function _drawJungle(W, horizon, shift) {
   }
 }
 
+// ── Sahara Desert background ──────────────────────────────────────────────
+function _drawDesert(W, horizon, shift) {
+  // Sky wash — already set by gradient, add heat shimmer band
+  ctx.fillStyle = 'rgba(200,120,20,0.18)';
+  ctx.fillRect(0, horizon * 0.75, W, horizon * 0.25);
+
+  // Far flat horizon (pale sand)
+  ctx.fillStyle = '#a06820';
+  ctx.fillRect(0, horizon - 4, W, 4);
+
+  // Distant dune silhouette (far layer)
+  ctx.fillStyle = '#b87828';
+  ctx.beginPath(); ctx.moveTo(0, horizon);
+  for (let x = 0; x <= W + 60; x += 25) {
+    const y = horizon - Math.abs(Math.sin((x - shift * 0.2) * 0.009)) * horizon * 0.18
+                      - Math.abs(Math.sin((x - shift * 0.2) * 0.025)) * horizon * 0.07;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, horizon); ctx.closePath(); ctx.fill();
+
+  // Near dune silhouette (closer, darker)
+  ctx.fillStyle = '#c87838';
+  ctx.beginPath(); ctx.moveTo(0, horizon);
+  for (let x = 0; x <= W + 40; x += 18) {
+    const y = horizon - Math.abs(Math.sin((x - shift * 0.5) * 0.013)) * horizon * 0.12
+                      - Math.abs(Math.sin((x - shift * 0.5) * 0.037)) * horizon * 0.05;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, horizon); ctx.closePath(); ctx.fill();
+
+  // Sun disk
+  const sunX = (W * 0.72 - shift * 0.05 + W * 2) % W;
+  const sunY = horizon * 0.22;
+  const sunR = horizon * 0.10;
+  const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR);
+  sunGrad.addColorStop(0, 'rgba(255,240,180,0.95)');
+  sunGrad.addColorStop(0.5, 'rgba(255,160,30,0.70)');
+  sunGrad.addColorStop(1, 'rgba(255,100,0,0)');
+  ctx.fillStyle = sunGrad;
+  ctx.beginPath(); ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2); ctx.fill();
+
+  // Cacti / rock silhouettes
+  ctx.fillStyle = '#7a5010';
+  [0.08, 0.22, 0.47, 0.65, 0.81, 0.93].forEach(tx => {
+    const x = tx * W - shift * 0.8, h = horizon * 0.14;
+    ctx.fillRect(x - 4, horizon - h, 8, h);
+    ctx.fillRect(x - 14, horizon - h * 0.55, 12, 5);
+    ctx.fillRect(x + 4,  horizon - h * 0.65, 12, 5);
+  });
+}
+
+// ── Great Wall of China background ────────────────────────────────────────
+function _drawGreatWall(W, horizon, shift) {
+  // Mountain range behind wall (misty Chinese ink-wash style)
+  ctx.fillStyle = '#3a4838';
+  ctx.beginPath(); ctx.moveTo(0, horizon);
+  for (let x = 0; x <= W + 80; x += 35) {
+    const y = horizon - Math.abs(Math.sin((x - shift * 0.2) * 0.006)) * horizon * 0.60
+                      - Math.abs(Math.sin((x - shift * 0.2) * 0.018)) * horizon * 0.20;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, horizon); ctx.closePath(); ctx.fill();
+
+  // Mid mountain (darker, closer)
+  ctx.fillStyle = '#2a3428';
+  ctx.beginPath(); ctx.moveTo(0, horizon);
+  for (let x = 0; x <= W + 50; x += 22) {
+    const y = horizon - Math.abs(Math.sin((x - shift * 0.45) * 0.010)) * horizon * 0.38
+                      - Math.abs(Math.sin((x - shift * 0.45) * 0.028)) * horizon * 0.12;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, horizon); ctx.closePath(); ctx.fill();
+
+  // Mist layer over mountains
+  ctx.fillStyle = 'rgba(160,180,200,0.15)';
+  ctx.fillRect(0, horizon * 0.30, W, horizon * 0.55);
+
+  // Stone wall battlements (crenellations) along horizon
+  const merlonW = Math.round(W / 18);
+  const merlonH = Math.round(horizon * 0.06);
+  ctx.fillStyle = '#5a5848';
+  for (let i = 0; i < 18; i++) {
+    const bx = Math.round(i * W / 18 - (shift * 0.9) % (W / 18));
+    if (i % 2 === 0) ctx.fillRect(bx, horizon - merlonH, merlonW, merlonH);
+  }
+
+  // Wall base (continuous stone band)
+  ctx.fillStyle = '#4a4838';
+  ctx.fillRect(0, horizon - 4, W, 4);
+
+  // Watchtower blocks at intervals
+  ctx.fillStyle = '#3a3830';
+  [0.12, 0.38, 0.62, 0.88].forEach(tx => {
+    const x = tx * W - shift * 0.9;
+    const tw = horizon * 0.08, th = horizon * 0.18;
+    ctx.fillRect(x - tw / 2, horizon - th, tw, th);
+    // Roof line
+    ctx.fillStyle = '#2a2820';
+    ctx.beginPath();
+    ctx.moveTo(x - tw * 0.6, horizon - th);
+    ctx.lineTo(x, horizon - th - tw * 0.5);
+    ctx.lineTo(x + tw * 0.6, horizon - th);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#3a3830';
+  });
+}
+
 // ── Road scanline renderer ─────────────────────────────────────────────────
 function renderRoad(W, H) {
   if (!_projected || _projected.length === 0) return;
@@ -212,9 +348,10 @@ function renderRoad(W, H) {
     const roadL      = cx - roadHalfPx;
     const roadR      = cx + roadHalfPx;
 
-    // Shortcut zones: slightly wider, no rumble strip, dashed edge
-    const isShortcut = seg.isShortcut;
-    const effectiveHalf = isShortcut ? roadHalfPx * 1.12 : roadHalfPx;
+    // Shortcut zones: slightly wider; narrow sections use roadWidthMult
+    const isShortcut   = seg.isShortcut;
+    const widthMult    = (seg.roadWidthMult != null) ? seg.roadWidthMult : 1.0;
+    const effectiveHalf = isShortcut ? roadHalfPx * 1.12 : roadHalfPx * widthMult;
     const sL = cx - effectiveHalf, sR = cx + effectiveHalf;
     const rumW = isShortcut ? 0 : Math.max(2, roadHalfPx * 0.13);
     const dashW = Math.max(1, roadHalfPx * 0.022);
@@ -264,6 +401,166 @@ function renderRoad(W, H) {
       const rRL = Math.max(0, sR), rRR = Math.min(W, sR + rumW);
       if (rRR > rRL) { ctx.fillStyle = seg.rumbleColor; ctx.fillRect(rRL, y, rRR - rRL, 1); }
     }
+  }
+
+  // ── Shortcut entry/exit arrow markers ────────────────────────────────────
+  // Draw a yellow chevron on the road at the first segment of each shortcut zone
+  if (!segments || !_projected) return;
+  const visScale2 = (typeof _weatherVisibility !== 'undefined') ? _weatherVisibility : 1.0;
+  const drawDist2 = Math.round(DRAW_DISTANCE * Math.max(0.35, visScale2));
+
+  for (let n = 2; n <= drawDist2; n++) {
+    const p    = _projected[n];
+    const pPrev = _projected[n - 1];
+    if (!p || !pPrev) continue;
+
+    const seg     = p.seg;
+    const segPrev = pPrev.seg;
+    if (!seg || !segPrev) continue;
+
+    // Detect start of a shortcut zone
+    if (seg.isShortcut && !segPrev.isShortcut) {
+      const cx  = p.centerX;
+      const cy  = p.screenY;
+      const aw  = Math.max(8, p.rHalf * 0.55);  // arrow width scaled to road size
+      if (cy < horizon || cy > H) continue;
+
+      ctx.save();
+      ctx.globalAlpha = 0.82;
+      ctx.fillStyle = '#ffe040';
+      ctx.strokeStyle = '#cc8800';
+      ctx.lineWidth = Math.max(1, aw * 0.07);
+
+      // Left chevron (pointing left → toward shortcut edge)
+      ctx.beginPath();
+      ctx.moveTo(cx - aw * 0.15, cy - aw * 0.32);
+      ctx.lineTo(cx - aw * 0.55, cy);
+      ctx.lineTo(cx - aw * 0.15, cy + aw * 0.32);
+      ctx.lineTo(cx - aw * 0.05, cy + aw * 0.20);
+      ctx.lineTo(cx - aw * 0.38, cy);
+      ctx.lineTo(cx - aw * 0.05, cy - aw * 0.20);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+
+      // Right chevron (pointing right)
+      ctx.beginPath();
+      ctx.moveTo(cx + aw * 0.15, cy - aw * 0.32);
+      ctx.lineTo(cx + aw * 0.55, cy);
+      ctx.lineTo(cx + aw * 0.15, cy + aw * 0.32);
+      ctx.lineTo(cx + aw * 0.05, cy + aw * 0.20);
+      ctx.lineTo(cx + aw * 0.38, cy);
+      ctx.lineTo(cx + aw * 0.05, cy - aw * 0.20);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+
+      ctx.restore();
+    }
+  }
+}
+
+// ── Item orb renderer ─────────────────────────────────────────────────────
+function renderItemOrbs(W, H) {
+  if (!_projected || !segments || typeof ITEM_DEFS === 'undefined') return;
+  const visScale = (typeof _weatherVisibility !== 'undefined') ? _weatherVisibility : 1.0;
+  const drawDist = Math.round(DRAW_DISTANCE * Math.max(0.35, visScale));
+  const t        = Date.now();
+  const horizon  = Math.floor(H * horizonFrac);
+
+  for (let n = 2; n <= drawDist; n++) {
+    const p = _projected[n];
+    if (!p) continue;
+    const seg = p.seg;
+    if (!seg || !seg.item) continue;
+
+    const def = ITEM_DEFS[seg.item];
+    if (!def) continue;
+
+    const orbR = Math.max(6, p.rHalf * 0.24);
+    const bob  = Math.sin(t * 0.004 + n * 0.85) * orbR * 0.45;
+    const cx   = p.centerX;
+    const cy   = p.screenY - orbR * 1.3 - bob;
+    if (cy < horizon || cy > H + orbR) continue;
+
+    ctx.save();
+
+    // Glow halo
+    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, orbR * 2.0);
+    grd.addColorStop(0, def.color + 'bb');
+    grd.addColorStop(1, def.glow + '00');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(cx, cy, orbR * 2.0, 0, Math.PI * 2); ctx.fill();
+
+    // Spinning diamond
+    ctx.translate(cx, cy);
+    ctx.rotate((t * 0.0022 + n * 0.5) % (Math.PI * 2));
+    ctx.fillStyle   = def.color;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth   = Math.max(1, orbR * 0.14);
+    ctx.beginPath();
+    ctx.moveTo(0,           -orbR);
+    ctx.lineTo(orbR * 0.65,  0);
+    ctx.lineTo(0,            orbR);
+    ctx.lineTo(-orbR * 0.65, 0);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // Item label below orb (un-rotated)
+    ctx.rotate(-((t * 0.0022 + n * 0.5) % (Math.PI * 2)));
+    ctx.fillStyle    = '#fff';
+    ctx.font         = `bold ${Math.max(8, Math.round(orbR * 0.85))}px monospace`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.label.slice(0, 5), 0, orbR * 2.1);
+
+    ctx.restore();
+  }
+}
+
+// ── Fireworks (Great Wall finish) ─────────────────────────────────────────
+let _fireworkTimer  = 0;
+let _fireworkBursts = [];
+
+function triggerFireworks() {
+  _fireworkTimer = 3.0;
+  _fireworkBursts = [];
+  const colors = ['#ff4400','#ffaa00','#ffee00','#ff80ff','#80ffff','#ffffff','#ff2288','#44ff88'];
+  for (let i = 0; i < 12; i++) {
+    _fireworkBursts.push({
+      x: 0.15 + Math.random() * 0.7,
+      y: 0.10 + Math.random() * 0.45,
+      color: colors[i % colors.length],
+      delay: Math.random() * 1.5,
+      r: 0,
+    });
+  }
+}
+
+function renderFireworks(W, H, dt) {
+  if (_fireworkTimer <= 0) return;
+  _fireworkTimer = Math.max(0, _fireworkTimer - (dt || 0.016));
+  const t = Date.now();
+
+  for (const b of _fireworkBursts) {
+    if (b.delay > 0) { b.delay -= (dt || 0.016); continue; }
+    b.r = Math.min(b.r + (dt || 0.016) * 180, W * 0.18);
+    const alpha = Math.min(1, b.r / (W * 0.06));
+    const fadeAlpha = alpha * (_fireworkTimer / 3.0);
+    const cx = b.x * W, cy = b.y * H;
+    // Ring burst
+    ctx.save();
+    ctx.globalAlpha = fadeAlpha * 0.7;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth   = Math.max(2, b.r * 0.07);
+    ctx.beginPath(); ctx.arc(cx, cy, b.r, 0, Math.PI * 2); ctx.stroke();
+    // Rays
+    ctx.globalAlpha = fadeAlpha * 0.9;
+    ctx.lineWidth   = Math.max(1, b.r * 0.03);
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 7) {
+      const rayLen = b.r * (0.5 + 0.5 * Math.sin(t * 0.008 + a));
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a) * rayLen, cy + Math.sin(a) * rayLen);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 

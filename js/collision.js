@@ -15,11 +15,20 @@ function checkCollisions(raceTime) {
     // Only check nearby cars (within 2 segments)
     if (relZ > 2.5 || relZ < 0.1) continue;
 
-    // Combined hitbox: player radius + fixed AI radius (all AI are F1-class, radius 0.28)
+    // Combined hitbox: player radius + fixed AI radius (reduced to match smaller AI sprites)
     const playerRadius = (VEHICLE_DEFS[carConfig.vehicleType] || VEHICLE_DEFS.f1).collisionRadius;
-    const hitRadius    = playerRadius + 0.28;
+    const hitRadius    = playerRadius + 0.13;
     const latDiff      = Math.abs(player.x - ai.x);
     if (latDiff > hitRadius) continue;
+
+    // Shield or dragon absorbs the hit
+    if (player.shield || player.dragonTimer > 0) {
+      player.shield = false;  // one-time shield consumed
+      ai.speed     *= 0.75;
+      ai.crashing   = true;
+      ai.crashTimer = 0.5;
+      break;
+    }
 
     // Collision!
     player.speed     *= CRASH_SPEED_MULT;

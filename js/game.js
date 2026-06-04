@@ -81,10 +81,74 @@ function startRace() {
   scheduleCountdownBeeps();
 }
 
+// ── Item collection ────────────────────────────────────────────────────────
+function checkItemCollection() {
+  if (!player || !segments) return;
+  const idx = Math.floor(player.z) % TRACK_SEGMENTS;
+  const seg = segments[idx];
+  if (seg && seg.item) {
+    _applyItem(seg.item);
+    seg.item = null;
+  }
+}
+
+function _applyItem(id) {
+  if (!player) return;
+  const veh = VEHICLE_DEFS[carConfig.vehicleType] || VEHICLE_DEFS.f1;
+  switch (id) {
+    case 'nitro':
+      player.boostTimer    = veh.boostDuration;
+      player.boostCooldown = 0;
+      player.boosting      = true;
+      playBoostSound();
+      break;
+    case 'shield':
+      player.shield = true;
+      break;
+    case 'grip':
+      player.gripTimer = ITEM_DEFS.grip.duration;
+      break;
+    case 'turbo':
+      player.turboTimer = ITEM_DEFS.turbo.duration;
+      break;
+    case 'cool':
+      player.heat      = 0;
+      player.coolTimer = ITEM_DEFS.cool.duration;
+      break;
+    case 'dragon':
+      player.dragonTimer   = ITEM_DEFS.dragon.duration;
+      player.shield        = true;
+      player.boostTimer    = ITEM_DEFS.dragon.duration;
+      player.boostCooldown = 0;
+      player.boosting      = true;
+      break;
+  }
+}
+
+// ── Slipstream detection (Monza slipstreamZone segments) ──────────────────
+function checkSlipstream(dt) {
+  if (!player || !segments || !aiCars) return;
+  const idx = Math.floor(player.z) % TRACK_SEGMENTS;
+  const seg = segments[idx];
+  player.slipstreaming = false;
+  if (!seg || !seg.slipstreamZone) return;
+  const veh = VEHICLE_DEFS[carConfig.vehicleType] || VEHICLE_DEFS.f1;
+  for (const ai of aiCars) {
+    let relZ = ai.z - player.z;
+    if (relZ < 0) relZ += TRACK_SEGMENTS;
+    if (relZ >= 3 && relZ <= 8 && Math.abs(ai.x - player.x) < 0.40) {
+      player.slipstreaming = true;
+      player.speed = Math.min(player.speed + 0.8 * dt, veh.maxSpeed * 1.12);
+      break;
+    }
+  }
+}
+
 // ── Lap detection ──────────────────────────────────────────────────────────
 function checkLap(prevZ) {
   const crossed = prevZ > TRACK_SEGMENTS * 0.9 && player.z < TRACK_SEGMENTS * 0.1;
   if (!crossed) return;
+  respawnTrackItems();
   const lapTime = raceData.raceTime - raceData.lapStartTime;
   raceData.lapTimes.push(lapTime);
   raceData.lapStartTime = raceData.raceTime;
@@ -96,6 +160,8 @@ function checkLap(prevZ) {
     stopRainAmbient();
     stopWindAmbient();
     playFinishFanfare();
+    // Great Wall: launch fireworks on finish
+    if (currentTrackDef && currentTrackDef.bgObjects === 'greatwall') triggerFireworks();
   }
 }
 
@@ -115,6 +181,8 @@ function update(dt) {
       updateWeather(dt);
       checkCollisions(raceData.raceTime);
       checkFlyingObjectCollisions();
+      checkItemCollection(dt);
+      checkSlipstream(dt);
       checkLap(prevZ);
       raceData.position = computePosition();
       break;
@@ -202,6 +270,7 @@ function render() {
     case 'FINISH': {
       if (finishData) {
         const a = renderFinish(W, H, mouseX, mouseY, clickedThisFrame, finishData);
+        renderFireworks(W, H, 0.016);
         if (a === 'AGAIN') STATE = 'TRACK_SELECT';
         if (a === 'MENU')  STATE = 'MENU';
       }
@@ -226,6 +295,7 @@ function _renderRaceScene() {
 
   renderSkyAndBackground(W, H);
   renderRoad(W, H);
+  renderItemOrbs(W, H);
   renderAICars(W, H);
 
   // Weather overlay (particles, sky tint) — drawn over road but under cockpit

@@ -58,7 +58,7 @@ const VEHICLE_DEFS = {
     maxSpeed: 14, accel: 4.5, brake: 9, coast: 1.8,
     steerSpeed: 2.2, minSteer: 0.38,
     boostSpeed: 22, boostDuration: 3.5, boostCooldown: 28,
-    collisionRadius: 0.30,
+    collisionRadius: 0.18,
     playerWidth: 0.082,
     cornerDrag: 0.18,
     // Sound profile
@@ -71,7 +71,7 @@ const VEHICLE_DEFS = {
     maxSpeed: 15, accel: 5.0, brake: 10, coast: 1.5,
     steerSpeed: 2.5, minSteer: 0.38,
     boostSpeed: 23, boostDuration: 4.0, boostCooldown: 24,
-    collisionRadius: 0.32,
+    collisionRadius: 0.19,
     playerWidth: 0.095,
     cornerDrag: 0.14,
     oscType: 'triangle', freqLo: 65, freqHi: 280, distAmt: 40,
@@ -83,7 +83,7 @@ const VEHICLE_DEFS = {
     maxSpeed: 16, accel: 3.5, brake: 7.5, coast: 1.2,
     steerSpeed: 1.6, minSteer: 0.28,
     boostSpeed: 24, boostDuration: 4.0, boostCooldown: 32,
-    collisionRadius: 0.36,
+    collisionRadius: 0.22,
     playerWidth: 0.100,
     cornerDrag: 0.22,
     oscType: 'square', freqLo: 55, freqHi: 200, distAmt: 120,
@@ -95,7 +95,7 @@ const VEHICLE_DEFS = {
     maxSpeed: 17, accel: 5.8, brake: 10, coast: 2.2,
     steerSpeed: 2.8, minSteer: 0.42,
     boostSpeed: 24, boostDuration: 3.0, boostCooldown: 22,
-    collisionRadius: 0.22,
+    collisionRadius: 0.14,
     playerWidth: 0.060,
     cornerDrag: 0.12,
     oscType: 'sine', freqLo: 110, freqHi: 420, distAmt: 30,
@@ -147,6 +147,18 @@ const DIFFICULTY_DEFS = {
     flyingObjects: true,
     weatherInterval: 15,
   },
+};
+
+// ─────────────────────────────────────────────
+//  POWER-UP ITEM DEFINITIONS
+// ─────────────────────────────────────────────
+const ITEM_DEFS = {
+  nitro:  { color: '#40a0ff', glow: '#0060ff', label: 'NITRO',    duration: 0    }, // instant
+  shield: { color: '#ffd700', glow: '#ff8800', label: 'SHIELD',   duration: 5    },
+  grip:   { color: '#40ff60', glow: '#008800', label: 'GRIP',     duration: 8    },
+  turbo:  { color: '#ff8800', glow: '#ff4400', label: 'TURBO',    duration: 6    },
+  cool:   { color: '#80e8ff', glow: '#00aacc', label: 'COOL',     duration: 10   },
+  dragon: { color: '#ff4400', glow: '#ffaa00', label: 'DRAGON',   duration: 4    },
 };
 
 // ─────────────────────────────────────────────

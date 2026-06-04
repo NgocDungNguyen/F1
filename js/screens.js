@@ -207,13 +207,13 @@ function renderTrackSelect(W, H, mx, my, clicked, selectedIdx) {
   _hdr('SELECT TRACK', H * 0.07);
 
   const AREA_Y = H * 0.13;
-  const AREA_H = H * 0.52;
-  const BTN_Y  = H * 0.67;
-  const BTN_H  = H * 0.11;
+  const AREA_H = H * 0.70;
+  const BTN_Y  = H * 0.85;
+  const BTN_H  = H * 0.10;
 
   const gap   = _p(8);
   const cCols = 2;
-  const cRows = 2;
+  const cRows = 3;
   const cW    = (W - gap * (cCols + 1)) / cCols;
   const cH    = (AREA_H - gap * (cRows + 1)) / cRows;
 
