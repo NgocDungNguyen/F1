@@ -296,6 +296,20 @@ function renderHUD(W, H, data) {
     ctx.fillText(heat > 0.85 ? '⚠ OVERHEAT' : 'ENGINE TEMP', htX + htW / 2, htY + htH / 2);
   }
 
+  // ── Fork shortcut indicator ─────────────────────────────────────────────
+  if (player && player.onShortcut) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(80,40,0,0.82)';
+    roundRect(ctx, W / 2 - _h(90), H * 0.46, _h(180), _h(28), _h(6), true, false);
+    ctx.fillStyle    = '#ffaa44';
+    ctx.shadowColor  = '#ff8800'; ctx.shadowBlur = 8;
+    ctx.font         = `bold ${_h(13)}px monospace`;
+    ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⚡ SHORTCUT PATH +8%', W / 2, H * 0.46 + _h(14));
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
   // ── Slipstream indicator (Monza) ────────────────────────────────────────
   if (player && player.slipstreaming) {
     ctx.fillStyle = 'rgba(0,20,60,0.75)';

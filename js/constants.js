@@ -5,8 +5,13 @@
 // Road / projection
 const DRAW_DISTANCE  = 150;   // segments visible ahead
 const CAMERA_H       = 0.84;
-const ROAD_HALF_NORM = 0.42;
+const ROAD_HALF_NORM = 0.56;  // wider road — fills ~33% more screen
 const HORIZON_FRAC   = 0.45;
+
+// Fork / alternate-route constants (world units, same as player.x scale)
+const FORK_DIV        = 0.32;  // half-width of center grass divider
+const FORK_STRIP_HALF = 0.74;  // half-width of each fork strip
+const FORK_OUTER      = 1.80;  // outer off-road boundary during fork
 
 // Track
 const TRACK_SEGMENTS = 900;

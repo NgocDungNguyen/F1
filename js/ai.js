@@ -53,13 +53,29 @@ function updateAI(dt) {
     ai.speed += clamp(speedDiff, -AI_ACCEL * dt * 2, AI_ACCEL * dt);
     ai.speed  = clamp(ai.speed, 0, AI_MAX_SPEED);
 
-    // ── Lane preference — avoid shortcut zones ────────────────────────────
-    const laneTarget = seg.isShortcut ? 0 : (ai.x > 0 ? 0.35 : -0.35);
-    ai.x += (laneTarget - ai.x) * AI_STEER * dt * 0.4;
-
-    // ── Curve-induced drift ───────────────────────────────────────────────
-    ai.x += seg.curve * (ai.speed / AI_MAX_SPEED) * 0.012 * dt * 60;
-    ai.x  = clamp(ai.x, -ROAD_EDGE * 0.9, ROAD_EDGE * 0.9);
+    // ── Lane preference ───────────────────────────────────────────────────
+    let laneTarget, xClampLo, xClampHi;
+    if (seg.forkSection) {
+      // Fork: AI assigned to strip by their lateral sign
+      // Half AI → left strip (shortcut), half → right strip (main)
+      const stripCenter = FORK_DIV + FORK_STRIP_HALF * 0.80;
+      laneTarget = ai.x <= 0 ? -stripCenter : stripCenter;
+      if (ai.x <= 0) {
+        xClampLo = -(FORK_OUTER - 0.1);
+        xClampHi = -(FORK_DIV + 0.05);
+      } else {
+        xClampLo = FORK_DIV + 0.05;
+        xClampHi = FORK_OUTER - 0.1;
+      }
+      ai.x += (laneTarget - ai.x) * AI_STEER * dt * 0.6;
+      ai.x  = clamp(ai.x, xClampLo, xClampHi);
+    } else {
+      laneTarget = ai.x > 0 ? 0.35 : -0.35;
+      ai.x += (laneTarget - ai.x) * AI_STEER * dt * 0.4;
+      // ── Curve-induced drift ─────────────────────────────────────────────
+      ai.x += seg.curve * (ai.speed / AI_MAX_SPEED) * 0.012 * dt * 60;
+      ai.x  = clamp(ai.x, -ROAD_EDGE * 0.9, ROAD_EDGE * 0.9);
+    }
 
     // ── Advance ───────────────────────────────────────────────────────────
     const prevZ = ai.z;

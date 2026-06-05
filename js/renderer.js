@@ -345,112 +345,136 @@ function renderRoad(W, H) {
     const roadHalfPx = scale * W * ROAD_HALF_NORM;
     const seg        = p.seg;
     const cx         = W / 2 + (p.curveX - ePX) * W * ROAD_HALF_NORM;
-    const roadL      = cx - roadHalfPx;
-    const roadR      = cx + roadHalfPx;
+    const dashW      = Math.max(1, roadHalfPx * 0.022);
+    const rumW       = Math.max(2, roadHalfPx * 0.13);
 
-    // Shortcut zones: slightly wider; narrow sections use roadWidthMult
-    const isShortcut   = seg.isShortcut;
-    const widthMult    = (seg.roadWidthMult != null) ? seg.roadWidthMult : 1.0;
-    const effectiveHalf = isShortcut ? roadHalfPx * 1.12 : roadHalfPx * widthMult;
-    const sL = cx - effectiveHalf, sR = cx + effectiveHalf;
-    const rumW = isShortcut ? 0 : Math.max(2, roadHalfPx * 0.13);
-    const dashW = Math.max(1, roadHalfPx * 0.022);
-
-    // Grass
+    // Grass (always drawn full-width)
     ctx.fillStyle = seg.grassColor;
     ctx.fillRect(0, y, W, 1);
 
-    // Left rumble (skip for shortcuts)
-    if (!isShortcut) {
+    if (seg.forkSection) {
+      // ── FORK: two separate road strips ─────────────────────────────
+      const stripHalfPx = FORK_STRIP_HALF * roadHalfPx;  // each strip half-width in px
+      const stripSepPx  = (FORK_DIV + FORK_STRIP_HALF) * roadHalfPx; // strip center from road center
+      const leftCx  = cx - stripSepPx;   // left strip center (shortcut)
+      const rightCx = cx + stripSepPx;   // right strip center (main)
+
+      // Left strip rumble
+      const lRumL = Math.max(0, leftCx - stripHalfPx - rumW);
+      const lRumR = Math.min(W, leftCx - stripHalfPx);
+      if (lRumR > lRumL) { ctx.fillStyle = seg.rumbleColor; ctx.fillRect(lRumL, y, lRumR - lRumL, 1); }
+
+      // Left strip surface (shortcut — dirt brown)
+      const lL = Math.max(0, leftCx - stripHalfPx), lR = Math.min(W, leftCx + stripHalfPx);
+      if (lR > lL) {
+        ctx.fillStyle = (seg.index & 1) ? '#8a6a40' : '#7a5a30';
+        ctx.fillRect(lL, y, lR - lL, 1);
+        // Dashed center line on left strip
+        if (seg.index % 4 < 2) {
+          ctx.fillStyle = 'rgba(255,220,100,0.7)';
+          const dL = Math.max(lL, leftCx - dashW), dR = Math.min(lR, leftCx + dashW);
+          if (dR > dL) ctx.fillRect(dL, y, dR - dL, 1);
+        }
+      }
+
+      // Right strip rumble
+      const rRumL = Math.max(0, rightCx + stripHalfPx);
+      const rRumR = Math.min(W, rightCx + stripHalfPx + rumW);
+      if (rRumR > rRumL) { ctx.fillStyle = seg.rumbleColor; ctx.fillRect(rRumL, y, rRumR - rRumL, 1); }
+
+      // Right strip surface (main road — asphalt)
+      const rL2 = Math.max(0, rightCx - stripHalfPx), rR2 = Math.min(W, rightCx + stripHalfPx);
+      if (rR2 > rL2) {
+        ctx.fillStyle = seg.roadColor;
+        ctx.fillRect(rL2, y, rR2 - rL2, 1);
+        // White center dash on right strip
+        if (seg.index % 4 < 2) {
+          ctx.fillStyle = '#fff';
+          const dL = Math.max(rL2, rightCx - dashW), dR = Math.min(rR2, rightCx + dashW);
+          if (dR > dL) ctx.fillRect(dL, y, dR - dL, 1);
+        }
+      }
+
+    } else {
+      // ── NORMAL single road (or forkEntry/forkExit transition) ──────
+      const widthMult     = (seg.roadWidthMult != null) ? seg.roadWidthMult : 1.0;
+      // forkEntry/forkExit: widen road slightly as visual transition
+      const entryMult     = seg.forkEntry ? 1.4 : (seg.forkExit ? 1.4 : 1.0);
+      const effectiveHalf = roadHalfPx * widthMult * entryMult;
+      const sL = cx - effectiveHalf, sR = cx + effectiveHalf;
+
+      // Left rumble
       const lRL = Math.max(0, sL - rumW), lRR = Math.min(W, sL);
       if (lRR > lRL) { ctx.fillStyle = seg.rumbleColor; ctx.fillRect(lRL, y, lRR - lRL, 1); }
-    }
 
-    // Road surface
-    const rL = Math.max(0, sL), rR = Math.min(W, sR);
-    if (rR > rL) {
-      if (seg.isFinish) {
-        const sq = Math.max(4, roadHalfPx / 5);
-        ctx.fillStyle = (Math.floor(cx/sq) + Math.floor(y/sq)) % 2 === 0 ? '#fff' : '#000';
-      } else {
-        ctx.fillStyle = seg.roadColor;
-      }
-      ctx.fillRect(rL, y, rR - rL, 1);
-    }
-
-    // Centre marking
-    if (!seg.isFinish && rR > rL) {
-      if (isShortcut) {
-        // Shortcut: dotted edge lines instead of center dash
-        if (seg.index % 6 < 2) {
-          ctx.fillStyle = 'rgba(255,220,100,0.6)';
-          const dL2 = Math.max(rL, sL + 2), dR2 = Math.min(rR, sL + dashW * 3);
-          const dL3 = Math.max(rL, sR - dashW * 3), dR3 = Math.min(rR, sR - 2);
-          if (dR2 > dL2) ctx.fillRect(dL2, y, dR2 - dL2, 1);
-          if (dR3 > dL3) ctx.fillRect(dL3, y, dR3 - dL3, 1);
+      // Road surface
+      const rL = Math.max(0, sL), rR = Math.min(W, sR);
+      if (rR > rL) {
+        if (seg.isFinish) {
+          const sq = Math.max(4, roadHalfPx / 5);
+          ctx.fillStyle = (Math.floor(cx/sq) + Math.floor(y/sq)) % 2 === 0 ? '#fff' : '#000';
+        } else {
+          ctx.fillStyle = seg.roadColor;
         }
-      } else if (seg.index % 4 < 2) {
+        ctx.fillRect(rL, y, rR - rL, 1);
+      }
+
+      // Centre dash
+      if (!seg.isFinish && rR > rL && seg.index % 4 < 2) {
         ctx.fillStyle = '#fff';
         const dL = Math.max(rL, cx - dashW), dR = Math.min(rR, cx + dashW);
         if (dR > dL) ctx.fillRect(dL, y, dR - dL, 1);
       }
-    }
 
-    // Right rumble (skip for shortcuts)
-    if (!isShortcut) {
+      // Right rumble
       const rRL = Math.max(0, sR), rRR = Math.min(W, sR + rumW);
       if (rRR > rRL) { ctx.fillStyle = seg.rumbleColor; ctx.fillRect(rRL, y, rRR - rRL, 1); }
     }
   }
 
-  // ── Shortcut entry/exit arrow markers ────────────────────────────────────
-  // Draw a yellow chevron on the road at the first segment of each shortcut zone
+  // ── Fork entry sign: painted road arrow showing LEFT=SHORTCUT, RIGHT=MAIN ──
   if (!segments || !_projected) return;
-  const visScale2 = (typeof _weatherVisibility !== 'undefined') ? _weatherVisibility : 1.0;
-  const drawDist2 = Math.round(DRAW_DISTANCE * Math.max(0.35, visScale2));
-
+  const drawDist2 = drawDist;
   for (let n = 2; n <= drawDist2; n++) {
     const p    = _projected[n];
-    const pPrev = _projected[n - 1];
-    if (!p || !pPrev) continue;
+    const pPrv = _projected[n - 1];
+    if (!p || !pPrv) continue;
+    const seg    = p.seg;
+    const segPrv = pPrv.seg;
+    if (!seg || !segPrv) continue;
 
-    const seg     = p.seg;
-    const segPrev = pPrev.seg;
-    if (!seg || !segPrev) continue;
-
-    // Detect start of a shortcut zone
-    if (seg.isShortcut && !segPrev.isShortcut) {
-      const cx  = p.centerX;
-      const cy  = p.screenY;
-      const aw  = Math.max(8, p.rHalf * 0.55);  // arrow width scaled to road size
-      if (cy < horizon || cy > H) continue;
-
+    // Draw fork sign at the START of each forkEntry zone
+    if (seg.forkEntry && !segPrv.forkEntry) {
+      const fcx = p.centerX;
+      const fcy = p.screenY;
+      const aw  = Math.max(10, p.rHalf * 0.80);
+      if (fcy < horizon || fcy > H) continue;
       ctx.save();
-      ctx.globalAlpha = 0.82;
-      ctx.fillStyle = '#ffe040';
-      ctx.strokeStyle = '#cc8800';
-      ctx.lineWidth = Math.max(1, aw * 0.07);
-
-      // Left chevron (pointing left → toward shortcut edge)
+      ctx.globalAlpha = 0.88;
+      // Left arrow (SHORTCUT)
+      ctx.fillStyle   = '#ffbb44';
+      ctx.strokeStyle = '#885500';
+      ctx.lineWidth   = Math.max(1, aw * 0.06);
       ctx.beginPath();
-      ctx.moveTo(cx - aw * 0.15, cy - aw * 0.32);
-      ctx.lineTo(cx - aw * 0.55, cy);
-      ctx.lineTo(cx - aw * 0.15, cy + aw * 0.32);
-      ctx.lineTo(cx - aw * 0.05, cy + aw * 0.20);
-      ctx.lineTo(cx - aw * 0.38, cy);
-      ctx.lineTo(cx - aw * 0.05, cy - aw * 0.20);
+      ctx.moveTo(fcx - aw * 0.10, fcy - aw * 0.18);
+      ctx.lineTo(fcx - aw * 0.60, fcy - aw * 0.40);
+      ctx.lineTo(fcx - aw * 0.55, fcy - aw * 0.22);
+      ctx.lineTo(fcx - aw * 0.90, fcy - aw * 0.22);
+      ctx.lineTo(fcx - aw * 0.90, fcy + aw * 0.05);
+      ctx.lineTo(fcx - aw * 0.55, fcy + aw * 0.05);
+      ctx.lineTo(fcx - aw * 0.60, fcy + aw * 0.22);
       ctx.closePath(); ctx.fill(); ctx.stroke();
-
-      // Right chevron (pointing right)
+      // Right arrow (MAIN)
+      ctx.fillStyle = '#88ddff';
       ctx.beginPath();
-      ctx.moveTo(cx + aw * 0.15, cy - aw * 0.32);
-      ctx.lineTo(cx + aw * 0.55, cy);
-      ctx.lineTo(cx + aw * 0.15, cy + aw * 0.32);
-      ctx.lineTo(cx + aw * 0.05, cy + aw * 0.20);
-      ctx.lineTo(cx + aw * 0.38, cy);
-      ctx.lineTo(cx + aw * 0.05, cy - aw * 0.20);
+      ctx.moveTo(fcx + aw * 0.10, fcy - aw * 0.18);
+      ctx.lineTo(fcx + aw * 0.60, fcy - aw * 0.40);
+      ctx.lineTo(fcx + aw * 0.55, fcy - aw * 0.22);
+      ctx.lineTo(fcx + aw * 0.90, fcy - aw * 0.22);
+      ctx.lineTo(fcx + aw * 0.90, fcy + aw * 0.05);
+      ctx.lineTo(fcx + aw * 0.55, fcy + aw * 0.05);
+      ctx.lineTo(fcx + aw * 0.60, fcy + aw * 0.22);
       ctx.closePath(); ctx.fill(); ctx.stroke();
-
       ctx.restore();
     }
   }

@@ -27,6 +27,7 @@ function initPlayer() {
     // ── Track-specific state ──────────────────
     heat:           0,     // Sahara overheat 0–1
     slipstreaming:  false, // Monza draft active
+    onShortcut:     false, // on left fork strip (shortcut path)
   };
 }
 
@@ -159,19 +160,57 @@ function updatePlayer(dt, inp) {
     player.speed = Math.max(player.speed - 0.5 * dt, veh.maxSpeed * 0.55);
   }
 
-  // ── Off-road detection (respects roadWidthMult for narrow sections) ────
-  const widthMult  = (seg && seg.roadWidthMult != null) ? seg.roadWidthMult : 1.0;
-  const effectiveEdge = ROAD_EDGE * widthMult;
-  const isOffRoad  = Math.abs(player.x) > effectiveEdge;
+  // ── Off-road detection (fork-aware) ────────────────────────────────────
+  if (seg && seg.forkSection) {
+    // ── FORK SECTION: two strips + divider ──────────────────────────────
+    const inDivider    = Math.abs(player.x) < FORK_DIV;
+    const outerOOB     = Math.abs(player.x) > FORK_OUTER;
+    const onLeftStrip  = player.x < -FORK_DIV;
 
-  if (isOffRoad && player.dragonTimer <= 0) {
-    player.offRoadTimer += dt;
-    player.speed *= Math.pow(OFFROAD_FRICTION, dt * 11);
-    if (player.speed > veh.maxSpeed * 0.52) player.speed = veh.maxSpeed * 0.52;
-    // Clamp to grass edge, proportional to width mult
-    player.x = clamp(player.x, -GRASS_EDGE * widthMult, GRASS_EDGE * widthMult);
-  } else if (!isOffRoad) {
-    player.offRoadTimer = 0;
+    if (player.dragonTimer <= 0) {
+      if (inDivider) {
+        // Driving in center grass divider — moderate penalty
+        player.offRoadTimer += dt;
+        player.speed *= Math.pow(OFFROAD_FRICTION, dt * 8);
+        // Nudge back to nearest strip
+        player.x += (player.x >= 0 ? 1 : -1) * 0.014;
+      } else if (outerOOB) {
+        // Fell off the outside edge
+        player.offRoadTimer += dt;
+        player.speed *= Math.pow(OFFROAD_FRICTION, dt * 11);
+        if (player.speed > veh.maxSpeed * 0.52) player.speed = veh.maxSpeed * 0.52;
+        player.x = clamp(player.x, -GRASS_EDGE, GRASS_EDGE);
+      } else {
+        player.offRoadTimer = 0;
+      }
+    }
+
+    // Left strip (shortcut) speed bonus — faster but requires skill
+    if (onLeftStrip && !inDivider) {
+      player.onShortcut = true;
+      player.speed = Math.min(
+        player.speed * (1 + 0.004 * dt * 60),
+        veh.maxSpeed * 1.08
+      );
+    } else {
+      player.onShortcut = false;
+    }
+
+  } else {
+    // ── NORMAL road (or roadWidthMult narrow section) ──────────────────
+    player.onShortcut = false;
+    const widthMult     = (seg && seg.roadWidthMult != null) ? seg.roadWidthMult : 1.0;
+    const effectiveEdge = ROAD_EDGE * widthMult;
+    const isOffRoad     = Math.abs(player.x) > effectiveEdge;
+
+    if (isOffRoad && player.dragonTimer <= 0) {
+      player.offRoadTimer += dt;
+      player.speed *= Math.pow(OFFROAD_FRICTION, dt * 11);
+      if (player.speed > veh.maxSpeed * 0.52) player.speed = veh.maxSpeed * 0.52;
+      player.x = clamp(player.x, -GRASS_EDGE * widthMult, GRASS_EDGE * widthMult);
+    } else if (!isOffRoad) {
+      player.offRoadTimer = 0;
+    }
   }
 
   // ── Advance position ───────────────────────────────────────────────────
