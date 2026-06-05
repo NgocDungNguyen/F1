@@ -356,6 +356,9 @@ function buildTrack(trackIdx) {
     x: (p.x - minX) / span,
     y: (p.y - minY) / span,
   }));
+
+  // Build alternate route segment arrays for this track
+  buildAltRoutes(trackIdx);
 }
 
 function respawnTrackItems() {
@@ -363,3 +366,384 @@ function respawnTrackItems() {
     segments[i].item = _itemRespawnMap[i];
   }
 }
+
+// ─────────────────────────────────────────────
+//  ALT ROUTE DEFINITIONS  (2–3 per track)
+//  Each altRoute has its own sections[] that build a completely separate
+//  road segment array. Player enters by steering hard toward entryDir side
+//  at mainEntryZ, drives through, rejoins main at mainExitZ.
+// ─────────────────────────────────────────────
+
+const ALT_ROUTES_BY_TRACK = {
+  // ── MONACO alt routes ──────────────────────────────────────────────
+  0: [
+    {
+      name:       'Harbour Wall',
+      entryLabel: '→ HARBOUR WALL',
+      mainEntryZ: 30,
+      mainExitZ:  185,
+      entryDir:   1,      // steer RIGHT
+      entryX:     0.58,
+      hillColor:  '#080d18',
+      sections: [
+        { len: 40, curve:  0.0 },           // dock straight — wide, fast
+        { len: 25, curve:  3.0 },           // tight right-hander at dock end
+        { len: 30, curve:  0.0 },           // harbourfront flat
+        { len: 20, curve: -1.8 },           // gentle left back to main
+        { len: 35, curve:  0.0 },           // final approach
+      ]
+    },
+    {
+      name:       'Casino Tunnel',
+      entryLabel: '← CASINO TUNNEL',
+      mainEntryZ: 240,
+      mainExitZ:  385,
+      entryDir:   -1,     // steer LEFT
+      entryX:     0.58,
+      hillColor:  '#050810',
+      sections: [
+        { len: 15, curve:  0.0, fogZone: true, roadWidthMult: 0.82 }, // tunnel entrance
+        { len: 30, curve: -2.5, fogZone: true, roadWidthMult: 0.80 }, // left-hander inside
+        { len: 20, curve:  2.5, fogZone: true, roadWidthMult: 0.80 }, // right-hander
+        { len: 15, curve:  0.0, item: 'nitro', fogZone: true },       // nitro pickup
+        { len: 30, curve: -1.5, fogZone: true },                      // exit S-curve
+        { len: 15, curve:  0.0 },                                     // rejoin approach
+      ]
+    },
+    {
+      name:       'Rooftop Route',
+      entryLabel: '→ ROOFTOP',
+      mainEntryZ: 510,
+      mainExitZ:  650,
+      entryDir:   1,
+      entryX:     0.55,
+      hillColor:  '#0a0f1a',
+      sections: [
+        { len: 35, curve:  0.0 },           // rooftop straight — wide vista
+        { len: 22, curve:  3.5 },           // sharp right — edge of building
+        { len: 20, curve:  0.0 },           // brief straight
+        { len: 22, curve: -3.5 },           // sharp left back
+        { len: 35, curve:  0.0 },           // descent to main
+      ]
+    },
+  ],
+
+  // ── MONZA alt routes ───────────────────────────────────────────────
+  1: [
+    {
+      name:       'Banking Bypass',
+      entryLabel: '→ BANKING BYPASS',
+      mainEntryZ: 155,
+      mainExitZ:  295,
+      entryDir:   1,
+      entryX:     0.55,
+      hillColor:  '#2a5a2a',
+      sections: [
+        { len: 100, curve:  0.8 },          // long banked oval section — pure speed
+        { len: 25,  curve:  0.0, item: 'turbo' }, // turbo pickup
+        { len: 15,  curve: -1.2 },          // merge back toward main
+      ]
+    },
+    {
+      name:       'Forest Path',
+      entryLabel: '← FOREST PATH',
+      mainEntryZ: 410,
+      mainExitZ:  565,
+      entryDir:   -1,
+      entryX:     0.55,
+      hillColor:  '#0a2010',
+      sections: [
+        { len: 25, curve: -1.5, surfaceGrip: 0.72 }, // into forest, loose surface
+        { len: 20, curve:  1.8, surfaceGrip: 0.72 }, // S-curve through trees
+        { len: 20, curve: -1.8, surfaceGrip: 0.72 },
+        { len: 25, curve:  0.0, surfaceGrip: 0.70, item: 'nitro' }, // forest straight
+        { len: 20, curve:  1.5, surfaceGrip: 0.72 }, // exit curves
+        { len: 20, curve:  0.0, surfaceGrip: 0.75 }, // rejoin
+      ]
+    },
+    {
+      name:       'Parabolica Inner',
+      entryLabel: '→ PARABOLICA INNER',
+      mainEntryZ: 695,
+      mainExitZ:  840,
+      entryDir:   1,
+      entryX:     0.52,
+      hillColor:  '#2a5a2a',
+      sections: [
+        { len: 40, curve:  1.0 },           // wide arc approach
+        { len: 35, curve:  3.2 },           // Parabolica inner — tight banking
+        { len: 35, curve:  0.0, item: 'shield' }, // exit straight + shield
+        { len: 20, curve: -1.0 },           // merge back
+      ]
+    },
+  ],
+
+  // ── MOUNTAIN PASS alt routes ───────────────────────────────────────
+  2: [
+    {
+      name:       'Cliff Ledge',
+      entryLabel: '→ CLIFF LEDGE',
+      mainEntryZ: 105,
+      mainExitZ:  235,
+      entryDir:   1,
+      entryX:     0.55,
+      hillColor:  '#3a2a1a',
+      sections: [
+        { len: 20, curve:  0.0, roadWidthMult: 0.68, fogZone: true }, // narrow ledge approach
+        { len: 30, curve:  3.0, roadWidthMult: 0.65, fogZone: true }, // hairpin on cliff
+        { len: 20, curve:  0.0, roadWidthMult: 0.68, item: 'shield' },
+        { len: 25, curve: -1.8, roadWidthMult: 0.72 }, // wind back
+        { len: 20, curve:  0.0 },                      // rejoin
+      ]
+    },
+    {
+      name:       'Valley Floor',
+      entryLabel: '← VALLEY FLOOR',
+      mainEntryZ: 310,
+      mainExitZ:  460,
+      entryDir:   -1,
+      entryX:     0.55,
+      hillColor:  '#2a4a1a',
+      sections: [
+        { len: 40, curve:  0.0, roadWidthMult: 1.20 }, // wide valley road
+        { len: 25, curve:  1.5, roadWidthMult: 1.15 }, // gentle right
+        { len: 40, curve:  0.0, roadWidthMult: 1.20, item: 'nitro' }, // valley straight
+        { len: 25, curve: -1.5, roadWidthMult: 1.15 }, // gentle left
+        { len: 20, curve:  0.0 },                      // climb back to main
+      ]
+    },
+    {
+      name:       'Summit Ridge',
+      entryLabel: '→ SUMMIT RIDGE',
+      mainEntryZ: 560,
+      mainExitZ:  695,
+      entryDir:   1,
+      entryX:     0.52,
+      hillColor:  '#4a4a3a',
+      sections: [
+        { len: 30, curve:  0.0, oilSlick: true },      // exposed windy ridge
+        { len: 25, curve:  2.8 },                       // hard right — ridge edge
+        { len: 25, curve: -2.8, oilSlick: true },       // hard left
+        { len: 20, curve:  0.0, item: 'cool' },         // summit straight
+        { len: 25, curve:  1.2 },                       // descend to main
+      ]
+    },
+  ],
+
+  // ── AMAZON CIRCUIT alt routes ──────────────────────────────────────
+  3: [
+    {
+      name:       'River Ford',
+      entryLabel: '← RIVER FORD',
+      mainEntryZ: 95,
+      mainExitZ:  215,
+      entryDir:   -1,
+      entryX:     0.55,
+      hillColor:  '#0a1a20',
+      sections: [
+        { len: 30, curve:  0.0, riverCrossing: true, surfaceGrip: 0.55 }, // wide slippery river
+        { len: 20, curve:  1.2, riverCrossing: true, surfaceGrip: 0.58 }, // river bend
+        { len: 20, curve: -1.2, riverCrossing: true, surfaceGrip: 0.58 }, // S-bend
+        { len: 25, curve:  0.0, item: 'grip', surfaceGrip: 0.62 },        // mid-river pickup
+        { len: 20, curve:  0.0 },                                          // river bank exit
+      ]
+    },
+    {
+      name:       'Canopy Path',
+      entryLabel: '→ CANOPY PATH',
+      mainEntryZ: 290,
+      mainExitZ:  435,
+      entryDir:   1,
+      entryX:     0.55,
+      hillColor:  '#0a1a08',
+      sections: [
+        { len: 25, curve:  0.0, fogZone: true },        // enter canopy — dark
+        { len: 20, curve: -2.2, fogZone: true },        // left through branches
+        { len: 20, curve:  2.2, fogZone: true },        // right
+        { len: 25, curve:  0.0, fogZone: true, item: 'nitro' }, // canopy straight
+        { len: 20, curve: -1.8, fogZone: true },
+        { len: 25, curve:  0.0 },                       // exit canopy
+      ]
+    },
+    {
+      name:       'Cave Passage',
+      entryLabel: '← CAVE PASSAGE',
+      mainEntryZ: 550,
+      mainExitZ:  670,
+      entryDir:   -1,
+      entryX:     0.52,
+      hillColor:  '#050805',
+      sections: [
+        { len: 15, curve:  0.0, fogZone: true, roadWidthMult: 0.82 }, // cave entrance
+        { len: 25, curve: -2.0, fogZone: true, roadWidthMult: 0.80 }, // left tunnel
+        { len: 25, curve:  2.0, fogZone: true, roadWidthMult: 0.80 }, // right tunnel
+        { len: 15, curve:  0.0, fogZone: true, item: 'shield', roadWidthMult: 0.85 },
+        { len: 20, curve:  0.0, fogZone: true },        // cave straight
+        { len: 15, curve:  0.0 },                       // exit into jungle
+      ]
+    },
+  ],
+
+  // ── SAHARA DESERT alt routes ───────────────────────────────────────
+  4: [
+    {
+      name:       'Dune Run',
+      entryLabel: '→ DUNE RUN',
+      mainEntryZ: 165,
+      mainExitZ:  305,
+      entryDir:   1,
+      entryX:     0.55,
+      hillColor:  '#d4a840',
+      sections: [
+        { len: 40, curve:  0.0, surfaceGrip: 0.72, heatZone: true }, // open dunes
+        { len: 25, curve:  1.5, surfaceGrip: 0.70 },                  // dune crest
+        { len: 25, curve: -1.5, surfaceGrip: 0.70 },                  // dune valley
+        { len: 30, curve:  0.0, surfaceGrip: 0.72, item: 'cool' },    // cool pickup
+        { len: 20, curve:  1.0 },                                      // rejoin approach
+      ]
+    },
+    {
+      name:       'Ancient Ruins',
+      entryLabel: '← ANCIENT RUINS',
+      mainEntryZ: 390,
+      mainExitZ:  510,
+      entryDir:   -1,
+      entryX:     0.55,
+      hillColor:  '#6a5030',
+      sections: [
+        { len: 15, curve:  3.5, roadWidthMult: 0.82 }, // sharp entry into ruins
+        { len: 20, curve:  0.0, roadWidthMult: 0.80 }, // ruins corridor
+        { len: 15, curve: -3.5, roadWidthMult: 0.82 }, // sharp left
+        { len: 20, curve:  0.0, roadWidthMult: 0.80, item: 'nitro' }, // ruins straight
+        { len: 15, curve:  2.5, roadWidthMult: 0.85 }, // right hairpin
+        { len: 15, curve:  0.0 },                      // exit ruins
+      ]
+    },
+    {
+      name:       'Oasis Track',
+      entryLabel: '→ OASIS',
+      mainEntryZ: 610,
+      mainExitZ:  730,
+      entryDir:   1,
+      entryX:     0.52,
+      hillColor:  '#1a4a20',
+      sections: [
+        { len: 30, curve:  0.0 },           // palm-lined approach
+        { len: 25, curve:  1.8 },           // oasis right-hander
+        { len: 25, curve: -1.8 },           // matching left
+        { len: 30, curve:  0.0, item: 'turbo' }, // oasis flat + turbo
+        { len: 15, curve: -1.2 },           // exit back to desert
+      ]
+    },
+  ],
+
+  // ── GREAT WALL alt routes ──────────────────────────────────────────
+  5: [
+    {
+      name:       'Below Wall',
+      entryLabel: '← BELOW WALL',
+      mainEntryZ: 105,
+      mainExitZ:  230,
+      entryDir:   -1,
+      entryX:     0.55,
+      hillColor:  '#3a4030',
+      sections: [
+        { len: 50, curve:  0.0, roadWidthMult: 1.15 }, // wide base-of-wall path
+        { len: 20, curve:  1.2, roadWidthMult: 1.10 }, // gentle right
+        { len: 30, curve:  0.0, item: 'nitro', roadWidthMult: 1.15 }, // long straight
+        { len: 20, curve: -1.2 },                      // merge back
+      ]
+    },
+    {
+      name:       'Mountain Village',
+      entryLabel: '→ MOUNTAIN VILLAGE',
+      mainEntryZ: 330,
+      mainExitZ:  475,
+      entryDir:   1,
+      entryX:     0.55,
+      hillColor:  '#4a2010',
+      sections: [
+        { len: 20, curve:  2.0, roadWidthMult: 0.78 }, // village entrance right
+        { len: 25, curve:  0.0, roadWidthMult: 0.76 }, // village street
+        { len: 20, curve: -2.0, roadWidthMult: 0.78 }, // left through market
+        { len: 20, curve:  0.0, item: 'shield', roadWidthMult: 0.80 },
+        { len: 20, curve:  1.8, roadWidthMult: 0.82 }, // right at temple
+        { len: 20, curve:  0.0 },                      // exit village
+      ]
+    },
+    {
+      name:       "Dragon's Back Ridge",
+      entryLabel: '← DRAGON RIDGE',
+      mainEntryZ: 590,
+      mainExitZ:  730,
+      entryDir:   -1,
+      entryX:     0.52,
+      hillColor:  '#2a3020',
+      sections: [
+        { len: 25, curve:  0.0 },           // ridge approach
+        { len: 25, curve:  4.0 },           // sharp right — exposed edge
+        { len: 20, curve:  0.0, item: 'dragon' }, // dragon orb at exposed peak
+        { len: 25, curve: -4.0 },           // sharp left — other side
+        { len: 25, curve:  0.0 },           // ridge descent back
+      ]
+    },
+  ],
+};
+
+// ─────────────────────────────────────────────
+//  ALT ROUTE BUILDER
+// ─────────────────────────────────────────────
+let _altRouteData = [];   // compiled for current track
+
+function buildAltRoutes(trackIdx) {
+  _altRouteData = [];
+  const defs = ALT_ROUTES_BY_TRACK[trackIdx];
+  if (!defs || !defs.length) return;
+
+  for (const ar of defs) {
+    const raw = [];
+    for (const sec of ar.sections) {
+      const mid = Math.floor(sec.len / 2);
+      for (let i = 0; i < sec.len; i++) {
+        raw.push({
+          curve:         sec.curve        ?? 0,
+          item:          i === mid ? (sec.item || null) : null,
+          surfaceGrip:   sec.surfaceGrip  ?? 1.0,
+          fogZone:       !!sec.fogZone,
+          roadWidthMult: sec.roadWidthMult ?? 1.0,
+          oilSlick:      !!sec.oilSlick,
+          heatZone:      !!sec.heatZone,
+          riverCrossing: !!sec.riverCrossing,
+        });
+      }
+    }
+
+    const hillColor  = ar.hillColor || '#2d7a2d';
+    const builtSegs  = raw.map((r, i) => ({
+      index:          i,
+      curve:          r.curve,
+      item:           r.item,
+      surfaceGrip:    r.surfaceGrip,
+      fogZone:        r.fogZone,
+      roadWidthMult:  r.roadWidthMult,
+      oilSlick:       r.oilSlick,
+      heatZone:       r.heatZone,
+      riverCrossing:  r.riverCrossing,
+      isShortcut:     false,
+      forkSection:    false,
+      forkEntry:      false,
+      forkExit:       false,
+      roadColor:      r.riverCrossing
+                        ? (i % 2 ? '#4a6890' : '#5a78a0')
+                        : (i % 2 ? '#888'    : '#999'),
+      grassColor:     i % 2
+                        ? hillColor
+                        : hillColor + 'cc',
+      rumbleColor:    i % 2 ? '#cc2222' : '#ffffff',
+      isFinish:       false,
+    }));
+
+    _altRouteData.push({ ...ar, builtSegments: builtSegs });
+  }
+}
+

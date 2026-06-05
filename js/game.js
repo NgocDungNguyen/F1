@@ -244,8 +244,11 @@ function update(dt) {
       updateAI(dt);
       updateWeather(dt);
       updateCameraShake(dt);
-      checkCollisions(raceData.raceTime);
-      checkFlyingObjectCollisions();
+      // Skip collision with AI when player is on a separate alt route
+      if (!player || !player.altRoute) {
+        checkCollisions(raceData.raceTime);
+        checkFlyingObjectCollisions();
+      }
       checkItemCollection(dt);
       checkSlipstream(dt);
       checkNearMisses();
@@ -361,7 +364,19 @@ function _renderRaceScene() {
   ctx.save();
   ctx.translate(_cameraShakeX || 0, _cameraShakeY || 0);
 
-  projectRoad(pZ, ePX, W, H);
+  // Swap segment array when player is on an alt route so projectRoad/renderRoad
+  // draw the alt route's road instead of the main track.
+  const _savedSegments = segments;
+  let   renderZ        = pZ;
+  if (player && player.altRoute && typeof _altRouteData !== 'undefined') {
+    const ar = _altRouteData[player.altRoute.idx];
+    if (ar) {
+      segments = ar.builtSegments;
+      renderZ  = player.altRoute.altZ;
+    }
+  }
+
+  projectRoad(renderZ, ePX, W, H);
   renderSkyAndBackground(W, H);
   renderRoad(W, H);
   renderItemOrbs(W, H);
@@ -374,6 +389,9 @@ function _renderRaceScene() {
   } else {
     renderPlayerCar(W, H);
   }
+
+  // Always restore the main segments array after rendering
+  segments = _savedSegments;
 
   ctx.restore();
 

@@ -333,6 +333,37 @@ function renderHUD(W, H, data) {
     ctx.fillText(heat > 0.85 ? '⚠ OVERHEAT' : 'ENGINE TEMP', htX + htW / 2, htY + htH / 2);
   }
 
+  // ── Alt route progress indicator ────────────────────────────────────────
+  if (player && player.altRoute && typeof _altRouteData !== 'undefined') {
+    const ar  = _altRouteData[player.altRoute.idx];
+    if (ar) {
+      const pct   = Math.min(1, player.altRoute.altZ / Math.max(1, ar.builtSegments.length - 2));
+      const arW   = _h(188), arH = _h(34);
+      const arX   = W / 2 - arW / 2;
+      const arY   = H * 0.40;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,30,22,0.88)';
+      roundRect(ctx, arX, arY, arW, arH, _h(6), true, false);
+      ctx.strokeStyle = '#44ffaa'; ctx.lineWidth = 1.2;
+      roundRect(ctx, arX, arY, arW, arH, _h(6), false, true);
+      // Route name
+      ctx.fillStyle    = '#44ffcc';
+      ctx.font         = `bold ${_h(11)}px monospace`;
+      ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText('🛣  ' + (ar.name || 'ALT ROUTE'), W / 2, arY + _h(4));
+      // Progress bar
+      const pbX = arX + _h(10), pbW = arW - _h(20), pbH = _h(7);
+      const pbY = arY + arH - pbH - _h(5);
+      ctx.fillStyle = '#0a2218'; ctx.fillRect(pbX, pbY, pbW, pbH);
+      const fillGrad = ctx.createLinearGradient(pbX, 0, pbX + pbW, 0);
+      fillGrad.addColorStop(0, '#22cc88');
+      fillGrad.addColorStop(1, '#44ffcc');
+      ctx.fillStyle = fillGrad;
+      ctx.fillRect(pbX, pbY, pbW * pct, pbH);
+      ctx.restore();
+    }
+  }
+
   // ── Fork shortcut indicator ─────────────────────────────────────────────
   if (player && player.onShortcut) {
     ctx.save();

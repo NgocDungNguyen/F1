@@ -4,6 +4,19 @@
 
 let player = null;
 
+// Softer off-road: cap at 50% max speed + camera shake vibration
+function _applyOffRoad(veh, dt) {
+  const offRoadCap = veh.maxSpeed * 0.50;
+  if (player.speed > offRoadCap) {
+    // Bleed speed toward the 50% cap (smooth, not instant stop)
+    player.speed = offRoadCap + (player.speed - offRoadCap) * Math.pow(0.72, dt * 7);
+  }
+  // Vibration effect — random camera shake while off-road
+  if (typeof triggerCameraShake === 'function' && Math.random() < dt * 12) {
+    triggerCameraShake(0.20);
+  }
+}
+
 function initPlayer() {
   player = {
     z:              8,
@@ -38,6 +51,8 @@ function initPlayer() {
     takedowns:      0,
     nearMisses:     0,
     totalDriftTime: 0,
+    // ── Alt route system ─────────────────────
+    altRoute:       null,   // null or { idx, altZ }
   };
 }
 
@@ -52,9 +67,15 @@ function updatePlayer(dt, inp) {
   if (player.coolTimer   > 0) player.coolTimer   = Math.max(0, player.coolTimer   - dt);
   if (player.dragonTimer > 0) player.dragonTimer = Math.max(0, player.dragonTimer - dt);
 
-  // ── Current segment ────────────────────────────────────────────────────
-  const segIdx = Math.floor(player.z) % TRACK_SEGMENTS;
-  const seg    = segments[segIdx];
+  // ── Current segment (main track or alt route) ─────────────────────────
+  let seg;
+  if (player.altRoute && typeof _altRouteData !== 'undefined' && _altRouteData[player.altRoute.idx]) {
+    const ar  = _altRouteData[player.altRoute.idx];
+    const idx = Math.floor(player.altRoute.altZ) % Math.max(1, ar.builtSegments.length);
+    seg       = ar.builtSegments[idx];
+  } else {
+    seg = segments[Math.floor(player.z) % TRACK_SEGMENTS];
+  }
 
   // ── Boost logic ────────────────────────────────────────────────────────
   if (player.boostTimer > 0) {
@@ -220,35 +241,27 @@ function updatePlayer(dt, inp) {
 
     if (player.dragonTimer <= 0) {
       if (inDivider) {
-        // Driving in center grass divider — moderate penalty
         player.offRoadTimer += dt;
         player.speed *= Math.pow(OFFROAD_FRICTION, dt * 8);
-        // Nudge back to nearest strip
         player.x += (player.x >= 0 ? 1 : -1) * 0.014;
       } else if (outerOOB) {
-        // Fell off the outside edge
         player.offRoadTimer += dt;
-        player.speed *= Math.pow(OFFROAD_FRICTION, dt * 11);
-        if (player.speed > veh.maxSpeed * 0.52) player.speed = veh.maxSpeed * 0.52;
+        _applyOffRoad(veh, dt);
         player.x = clamp(player.x, -GRASS_EDGE, GRASS_EDGE);
       } else {
         player.offRoadTimer = 0;
       }
     }
 
-    // Left strip (shortcut) speed bonus — faster but requires skill
     if (onLeftStrip && !inDivider) {
       player.onShortcut = true;
-      player.speed = Math.min(
-        player.speed * (1 + 0.004 * dt * 60),
-        veh.maxSpeed * 1.08
-      );
+      player.speed = Math.min(player.speed * (1 + 0.004 * dt * 60), veh.maxSpeed * 1.08);
     } else {
       player.onShortcut = false;
     }
 
   } else {
-    // ── NORMAL road (or roadWidthMult narrow section) ──────────────────
+    // ── NORMAL road ───────────────────────────────────────────────────
     player.onShortcut = false;
     const widthMult     = (seg && seg.roadWidthMult != null) ? seg.roadWidthMult : 1.0;
     const effectiveEdge = ROAD_EDGE * widthMult;
@@ -256,16 +269,48 @@ function updatePlayer(dt, inp) {
 
     if (isOffRoad && player.dragonTimer <= 0) {
       player.offRoadTimer += dt;
-      player.speed *= Math.pow(OFFROAD_FRICTION, dt * 11);
-      if (player.speed > veh.maxSpeed * 0.52) player.speed = veh.maxSpeed * 0.52;
+      _applyOffRoad(veh, dt);
       player.x = clamp(player.x, -GRASS_EDGE * widthMult, GRASS_EDGE * widthMult);
     } else if (!isOffRoad) {
       player.offRoadTimer = 0;
     }
   }
 
-  // ── Advance position ───────────────────────────────────────────────────
-  player.z = (player.z + player.speed * dt) % TRACK_SEGMENTS;
+  // ── Advance position (main track or alt route) ─────────────────────────
+  if (player.altRoute && typeof _altRouteData !== 'undefined') {
+    const ar = _altRouteData[player.altRoute.idx];
+    if (ar) {
+      player.altRoute.altZ += player.speed * dt;
+      // Exit alt route when its segment array ends
+      if (player.altRoute.altZ >= ar.builtSegments.length - 2) {
+        player.z       = ar.mainExitZ % TRACK_SEGMENTS;
+        player.altRoute = null;
+        if (typeof showPopup === 'function') showPopup('MAIN TRACK ↩', '#88ddff', 1.0);
+      }
+      // player.z stays frozen at mainEntryZ while on alt route
+    }
+  } else {
+    // ── Check for alt route entry ──────────────────────────────────────
+    if (typeof _altRouteData !== 'undefined' && _altRouteData.length && speedFrac > 0.10) {
+      for (let i = 0; i < _altRouteData.length; i++) {
+        const ar   = _altRouteData[i];
+        const dist = Math.abs(player.z - ar.mainEntryZ);
+        if (dist < 2.0) {
+          const enteredLeft  = ar.entryDir === -1 && player.x < -ar.entryX;
+          const enteredRight = ar.entryDir ===  1 && player.x >  ar.entryX;
+          if (enteredLeft || enteredRight) {
+            player.altRoute = { idx: i, altZ: 0 };
+            // Snap player x to center of the chosen road
+            player.x = 0;
+            if (typeof showPopup === 'function')
+              showPopup(ar.entryLabel || '🛣 ALT ROUTE!', '#44ffaa', 1.5);
+            break;
+          }
+        }
+      }
+    }
+    player.z = (player.z + player.speed * dt) % TRACK_SEGMENTS;
+  }
 
   // ── Audio ──────────────────────────────────────────────────────────────
   updateEngineSound(player.speed / (player.boosting ? veh.boostSpeed : veh.maxSpeed));

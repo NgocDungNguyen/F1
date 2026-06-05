@@ -478,6 +478,73 @@ function renderRoad(W, H) {
       ctx.restore();
     }
   }
+
+  // ── Alt route entry signs (green arrows + label on road surface) ──────────
+  if (typeof _altRouteData !== 'undefined' && _altRouteData.length
+      && (!player || !player.altRoute)) {
+    const horizon2 = Math.floor(H * horizonFrac);
+    for (const ar of _altRouteData) {
+      // Find the projected slice nearest to the alt route entry point
+      for (let n = 3; n <= drawDist; n++) {
+        const p = _projected[n];
+        if (!p || !p.seg) continue;
+        // Check if this slice corresponds to the entry Z on the main track
+        const sliceZ = (Math.floor(player ? player.z : 0) + n - 1) % TRACK_SEGMENTS;
+        const distToEntry = Math.abs(sliceZ - ar.mainEntryZ);
+        if (distToEntry > 4) continue;
+
+        const cx  = p.centerX;
+        const cy  = p.screenY;
+        if (cy < horizon2 || cy > H) continue;
+        const aw  = Math.max(14, p.rHalf * 1.0);
+
+        ctx.save();
+        ctx.globalAlpha = 0.90;
+        // Direction-specific arrow color: teal/green for alt routes
+        const arrowColor = '#44ffcc';
+        ctx.fillStyle    = arrowColor;
+        ctx.strokeStyle  = '#006644';
+        ctx.lineWidth    = Math.max(1.5, aw * 0.06);
+
+        if (ar.entryDir === -1) {
+          // Arrow pointing LEFT
+          ctx.beginPath();
+          ctx.moveTo(cx - aw * 0.05, cy - aw * 0.22);
+          ctx.lineTo(cx - aw * 0.65, cy - aw * 0.45);
+          ctx.lineTo(cx - aw * 0.58, cy - aw * 0.24);
+          ctx.lineTo(cx - aw * 1.10, cy - aw * 0.24);
+          ctx.lineTo(cx - aw * 1.10, cy + aw * 0.06);
+          ctx.lineTo(cx - aw * 0.58, cy + aw * 0.06);
+          ctx.lineTo(cx - aw * 0.65, cy + aw * 0.26);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+        } else {
+          // Arrow pointing RIGHT
+          ctx.beginPath();
+          ctx.moveTo(cx + aw * 0.05, cy - aw * 0.22);
+          ctx.lineTo(cx + aw * 0.65, cy - aw * 0.45);
+          ctx.lineTo(cx + aw * 0.58, cy - aw * 0.24);
+          ctx.lineTo(cx + aw * 1.10, cy - aw * 0.24);
+          ctx.lineTo(cx + aw * 1.10, cy + aw * 0.06);
+          ctx.lineTo(cx + aw * 0.58, cy + aw * 0.06);
+          ctx.lineTo(cx + aw * 0.65, cy + aw * 0.26);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+        }
+
+        // Route label below arrow
+        const label = ar.entryLabel || ar.name || 'ALT ROUTE';
+        ctx.fillStyle    = '#ffffff';
+        ctx.shadowColor  = '#00aa66';
+        ctx.shadowBlur   = 6;
+        ctx.font         = `bold ${Math.max(9, Math.round(aw * 0.30))}px monospace`;
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, cx, cy + aw * 0.55);
+        ctx.shadowBlur   = 0;
+        ctx.restore();
+        break;  // Only draw sign once per alt route per frame
+      }
+    }
+  }
 }
 
 // ── Item orb renderer ─────────────────────────────────────────────────────
