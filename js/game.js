@@ -364,15 +364,23 @@ function _renderRaceScene() {
   ctx.save();
   ctx.translate(_cameraShakeX || 0, _cameraShakeY || 0);
 
-  // Swap segment array when player is on an alt route so projectRoad/renderRoad
-  // draw the alt route's road instead of the main track.
+  // Swap segment array AND sky colors when player is on an alt route
   const _savedSegments = segments;
+  const _savedSkyTop   = currentTrackDef ? currentTrackDef.skyTop  : null;
+  const _savedSkyBot   = currentTrackDef ? currentTrackDef.skyBot   : null;
+  const _savedHillCol  = currentTrackDef ? currentTrackDef.hillColor: null;
   let   renderZ        = pZ;
   if (player && player.altRoute && typeof _altRouteData !== 'undefined') {
     const ar = _altRouteData[player.altRoute.idx];
     if (ar) {
       segments = ar.builtSegments;
       renderZ  = player.altRoute.altZ;
+      // Override sky and terrain colors for total visual transformation
+      if (currentTrackDef) {
+        if (ar.skyTop)    currentTrackDef.skyTop    = ar.skyTop;
+        if (ar.skyBot)    currentTrackDef.skyBot     = ar.skyBot;
+        if (ar.hillColor) currentTrackDef.hillColor  = ar.hillColor;
+      }
     }
   }
 
@@ -390,8 +398,13 @@ function _renderRaceScene() {
     renderPlayerCar(W, H);
   }
 
-  // Always restore the main segments array after rendering
+  // Always restore segments and track colors after rendering
   segments = _savedSegments;
+  if (currentTrackDef) {
+    if (_savedSkyTop  !== null) currentTrackDef.skyTop    = _savedSkyTop;
+    if (_savedSkyBot  !== null) currentTrackDef.skyBot     = _savedSkyBot;
+    if (_savedHillCol !== null) currentTrackDef.hillColor  = _savedHillCol;
+  }
 
   ctx.restore();
 

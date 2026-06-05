@@ -375,316 +375,347 @@ function respawnTrackItems() {
 // ─────────────────────────────────────────────
 
 const ALT_ROUTES_BY_TRACK = {
-  // ── MONACO alt routes ──────────────────────────────────────────────
+  // ── MONACO alt routes ──────────────────────────────────────────────────
+  // KEY: every route BEGINS with a sharp curve in the entry direction so
+  // the player instantly feels like they've turned off the main road.
   0: [
     {
       name:       'Harbour Wall',
       entryLabel: '→ HARBOUR WALL',
-      mainEntryZ: 30,
-      mainExitZ:  185,
-      entryDir:   1,      // steer RIGHT
-      entryX:     0.58,
-      hillColor:  '#080d18',
+      mainEntryZ: 30,   mainExitZ: 195,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#04090f',
+      skyTop: '#020510', skyBot: '#0a1830',   // deep night harbour sky
       sections: [
-        { len: 40, curve:  0.0 },           // dock straight — wide, fast
-        { len: 25, curve:  3.0 },           // tight right-hander at dock end
-        { len: 30, curve:  0.0 },           // harbourfront flat
-        { len: 20, curve: -1.8 },           // gentle left back to main
-        { len: 35, curve:  0.0 },           // final approach
+        { len: 12, curve:  4.8 },             // SHARP RIGHT — you've turned onto the dock
+        { len: 35, curve:  0.0 },             // long harbour straight, wide
+        { len: 18, curve: -3.0 },             // left bend along harbour wall
+        { len: 25, curve:  0.0 },             // dock mid-section
+        { len: 18, curve:  3.2 },             // right — pier end corner
+        { len: 30, curve:  0.0 },             // back stretch
+        { len: 15, curve: -4.0 },             // hard left back toward main
+        { len: 20, curve:  0.0 },             // rejoin straight
       ]
     },
     {
       name:       'Casino Tunnel',
       entryLabel: '← CASINO TUNNEL',
-      mainEntryZ: 240,
-      mainExitZ:  385,
-      entryDir:   -1,     // steer LEFT
-      entryX:     0.58,
-      hillColor:  '#050810',
+      mainEntryZ: 240,  mainExitZ: 400,
+      entryDir:   -1, entryX: 0.48,
+      hillColor:  '#020208',
+      skyTop: '#000005', skyBot: '#050510',   // pitch-black tunnel sky
       sections: [
-        { len: 15, curve:  0.0, fogZone: true, roadWidthMult: 0.82 }, // tunnel entrance
-        { len: 30, curve: -2.5, fogZone: true, roadWidthMult: 0.80 }, // left-hander inside
-        { len: 20, curve:  2.5, fogZone: true, roadWidthMult: 0.80 }, // right-hander
-        { len: 15, curve:  0.0, item: 'nitro', fogZone: true },       // nitro pickup
-        { len: 30, curve: -1.5, fogZone: true },                      // exit S-curve
-        { len: 15, curve:  0.0 },                                     // rejoin approach
+        { len: 10, curve: -4.5, fogZone: true, roadWidthMult: 0.85 }, // SHARP LEFT — tunnel entrance
+        { len: 30, curve: -1.5, fogZone: true, roadWidthMult: 0.82 }, // sweeping left inside
+        { len: 20, curve:  2.8, fogZone: true, roadWidthMult: 0.80 }, // right-hander
+        { len: 20, curve: -2.8, fogZone: true, roadWidthMult: 0.80 }, // S-left back
+        { len: 15, curve:  0.0, fogZone: true, item: 'nitro', roadWidthMult: 0.85 },
+        { len: 25, curve:  2.0, fogZone: true },                       // exit curve
+        { len: 15, curve: -3.5 },                                      // hard left — back to main
+        { len: 15, curve:  0.0 },                                      // rejoin
       ]
     },
     {
-      name:       'Rooftop Route',
+      name:       'Rooftop Circuit',
       entryLabel: '→ ROOFTOP',
-      mainEntryZ: 510,
-      mainExitZ:  650,
-      entryDir:   1,
-      entryX:     0.55,
-      hillColor:  '#0a0f1a',
+      mainEntryZ: 510,  mainExitZ: 670,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#060810',
+      skyTop: '#0a0518', skyBot: '#1a1030',   // elevated purple city glow
       sections: [
-        { len: 35, curve:  0.0 },           // rooftop straight — wide vista
-        { len: 22, curve:  3.5 },           // sharp right — edge of building
-        { len: 20, curve:  0.0 },           // brief straight
-        { len: 22, curve: -3.5 },           // sharp left back
-        { len: 35, curve:  0.0 },           // descent to main
+        { len: 10, curve:  4.5 },             // SHARP RIGHT — ramp up to roof
+        { len: 25, curve: -1.8 },             // sweeping left across rooftop
+        { len: 20, curve:  0.0 },             // rooftop straight — city vista
+        { len: 18, curve:  3.5 },             // sharp right — edge of building
+        { len: 20, curve:  0.0 },             // straight along parapet
+        { len: 18, curve: -3.5 },             // sharp left back
+        { len: 25, curve: -1.5 },             // sweeping right descent
+        { len: 15, curve:  0.0 },             // rejoin approach
       ]
     },
   ],
 
-  // ── MONZA alt routes ───────────────────────────────────────────────
+  // ── MONZA alt routes ───────────────────────────────────────────────────
   1: [
     {
-      name:       'Banking Bypass',
-      entryLabel: '→ BANKING BYPASS',
-      mainEntryZ: 155,
-      mainExitZ:  295,
-      entryDir:   1,
-      entryX:     0.55,
-      hillColor:  '#2a5a2a',
+      name:       'Oval Banking',
+      entryLabel: '→ OVAL BANKING',
+      mainEntryZ: 155,  mainExitZ: 310,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#1a3a1a',
+      skyTop: '#1a3a6a', skyBot: '#4a8ad0',   // bright Monza blue
       sections: [
-        { len: 100, curve:  0.8 },          // long banked oval section — pure speed
-        { len: 25,  curve:  0.0, item: 'turbo' }, // turbo pickup
-        { len: 15,  curve: -1.2 },          // merge back toward main
+        { len: 10, curve:  4.2 },             // SHARP RIGHT — onto banked oval
+        { len: 60, curve:  1.2 },             // long sustained banking — pure speed
+        { len: 10, curve:  0.0, item: 'turbo' },
+        { len: 40, curve:  1.0 },             // second banking section
+        { len: 15, curve: -4.5 },             // hard left back to chicane
+        { len: 15, curve:  0.0 },             // rejoin
       ]
     },
     {
-      name:       'Forest Path',
-      entryLabel: '← FOREST PATH',
-      mainEntryZ: 410,
-      mainExitZ:  565,
-      entryDir:   -1,
-      entryX:     0.55,
-      hillColor:  '#0a2010',
+      name:       'Forest Rally',
+      entryLabel: '← FOREST RALLY',
+      mainEntryZ: 410,  mainExitZ: 575,
+      entryDir:   -1, entryX: 0.48,
+      hillColor:  '#071410',
+      skyTop: '#0a1a08', skyBot: '#103018',   // deep forest canopy sky
       sections: [
-        { len: 25, curve: -1.5, surfaceGrip: 0.72 }, // into forest, loose surface
-        { len: 20, curve:  1.8, surfaceGrip: 0.72 }, // S-curve through trees
-        { len: 20, curve: -1.8, surfaceGrip: 0.72 },
-        { len: 25, curve:  0.0, surfaceGrip: 0.70, item: 'nitro' }, // forest straight
-        { len: 20, curve:  1.5, surfaceGrip: 0.72 }, // exit curves
-        { len: 20, curve:  0.0, surfaceGrip: 0.75 }, // rejoin
+        { len: 10, curve: -4.8, surfaceGrip: 0.75 }, // SHARP LEFT — into the forest
+        { len: 25, curve: -2.0, surfaceGrip: 0.72 }, // sweeping left through trees
+        { len: 20, curve:  2.5, surfaceGrip: 0.72 }, // right — narrow forest road
+        { len: 20, curve: -2.5, surfaceGrip: 0.72 }, // left — S-curve
+        { len: 25, curve:  0.0, surfaceGrip: 0.70, item: 'nitro' },
+        { len: 20, curve:  2.0, surfaceGrip: 0.72 }, // right — final bend
+        { len: 15, curve:  4.5 },             // HARD RIGHT — back to main
+        { len: 15, curve:  0.0 },
       ]
     },
     {
       name:       'Parabolica Inner',
-      entryLabel: '→ PARABOLICA INNER',
-      mainEntryZ: 695,
-      mainExitZ:  840,
-      entryDir:   1,
-      entryX:     0.52,
-      hillColor:  '#2a5a2a',
+      entryLabel: '→ INNER ARC',
+      mainEntryZ: 695,  mainExitZ: 855,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#1e4a1e',
+      skyTop: '#1a3a6a', skyBot: '#4a7ab8',
       sections: [
-        { len: 40, curve:  1.0 },           // wide arc approach
-        { len: 35, curve:  3.2 },           // Parabolica inner — tight banking
-        { len: 35, curve:  0.0, item: 'shield' }, // exit straight + shield
-        { len: 20, curve: -1.0 },           // merge back
+        { len: 10, curve:  4.0 },             // HARD RIGHT — onto inner arc
+        { len: 50, curve:  2.8 },             // sustained Parabolica inner curve
+        { len: 20, curve:  0.0, item: 'shield' },
+        { len: 30, curve:  2.2 },             // second arc section
+        { len: 15, curve: -4.5 },             // hard left back out
+        { len: 15, curve:  0.0 },
       ]
     },
   ],
 
-  // ── MOUNTAIN PASS alt routes ───────────────────────────────────────
+  // ── MOUNTAIN PASS alt routes ───────────────────────────────────────────
   2: [
     {
       name:       'Cliff Ledge',
       entryLabel: '→ CLIFF LEDGE',
-      mainEntryZ: 105,
-      mainExitZ:  235,
-      entryDir:   1,
-      entryX:     0.55,
-      hillColor:  '#3a2a1a',
+      mainEntryZ: 105,  mainExitZ: 250,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#2a1a0a',
+      skyTop: '#100510', skyBot: '#281030',   // dramatic purple cliff sky
       sections: [
-        { len: 20, curve:  0.0, roadWidthMult: 0.68, fogZone: true }, // narrow ledge approach
-        { len: 30, curve:  3.0, roadWidthMult: 0.65, fogZone: true }, // hairpin on cliff
-        { len: 20, curve:  0.0, roadWidthMult: 0.68, item: 'shield' },
-        { len: 25, curve: -1.8, roadWidthMult: 0.72 }, // wind back
-        { len: 20, curve:  0.0 },                      // rejoin
+        { len: 10, curve:  4.5, roadWidthMult: 0.72, fogZone: true }, // SHARP RIGHT — onto ledge
+        { len: 30, curve: -2.5, roadWidthMult: 0.68, fogZone: true }, // sweeping left along cliff
+        { len: 20, curve:  3.0, roadWidthMult: 0.65, fogZone: true }, // tight right hairpin
+        { len: 15, curve:  0.0, roadWidthMult: 0.70, item: 'shield' },
+        { len: 25, curve: -2.0, roadWidthMult: 0.72 },                // left — cliff traverse
+        { len: 20, curve:  3.5, roadWidthMult: 0.75 },                // right — back toward main
+        { len: 15, curve:  0.0 },
       ]
     },
     {
       name:       'Valley Floor',
       entryLabel: '← VALLEY FLOOR',
-      mainEntryZ: 310,
-      mainExitZ:  460,
-      entryDir:   -1,
-      entryX:     0.55,
-      hillColor:  '#2a4a1a',
+      mainEntryZ: 310,  mainExitZ: 475,
+      entryDir:   -1, entryX: 0.48,
+      hillColor:  '#1a3a10',
+      skyTop: '#0a1420', skyBot: '#203040',   // valley low-light sky
       sections: [
-        { len: 40, curve:  0.0, roadWidthMult: 1.20 }, // wide valley road
-        { len: 25, curve:  1.5, roadWidthMult: 1.15 }, // gentle right
-        { len: 40, curve:  0.0, roadWidthMult: 1.20, item: 'nitro' }, // valley straight
-        { len: 25, curve: -1.5, roadWidthMult: 1.15 }, // gentle left
-        { len: 20, curve:  0.0 },                      // climb back to main
+        { len: 10, curve: -4.5 },             // SHARP LEFT — descend to valley
+        { len: 35, curve: -1.5, roadWidthMult: 1.20 }, // sweeping left descent
+        { len: 30, curve:  0.0, roadWidthMult: 1.25 }, // wide valley floor straight
+        { len: 20, curve:  1.8, roadWidthMult: 1.20, item: 'nitro' },
+        { len: 30, curve:  0.0, roadWidthMult: 1.20 }, // back stretch
+        { len: 20, curve: -2.0, roadWidthMult: 1.15 }, // curve to exit
+        { len: 15, curve:  4.5 },             // HARD RIGHT — climb back to main
+        { len: 15, curve:  0.0 },
       ]
     },
     {
       name:       'Summit Ridge',
       entryLabel: '→ SUMMIT RIDGE',
-      mainEntryZ: 560,
-      mainExitZ:  695,
-      entryDir:   1,
-      entryX:     0.52,
-      hillColor:  '#4a4a3a',
+      mainEntryZ: 560,  mainExitZ: 710,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#3a3828',
+      skyTop: '#0a0618', skyBot: '#1a1228',   // high-altitude night
       sections: [
-        { len: 30, curve:  0.0, oilSlick: true },      // exposed windy ridge
-        { len: 25, curve:  2.8 },                       // hard right — ridge edge
-        { len: 25, curve: -2.8, oilSlick: true },       // hard left
-        { len: 20, curve:  0.0, item: 'cool' },         // summit straight
-        { len: 25, curve:  1.2 },                       // descend to main
+        { len: 10, curve:  4.2, oilSlick: true },      // SHARP RIGHT — up to ridge
+        { len: 25, curve:  2.0, oilSlick: true },      // sweeping right along ridge
+        { len: 20, curve: -3.0 },                       // left — ridge corner
+        { len: 25, curve:  0.0, item: 'cool' },         // exposed straight
+        { len: 20, curve:  2.8, oilSlick: true },       // right — back edge
+        { len: 20, curve: -2.5 },                       // left — descent starts
+        { len: 15, curve: -4.0 },                       // HARD LEFT — back to main
+        { len: 15, curve:  0.0 },
       ]
     },
   ],
 
-  // ── AMAZON CIRCUIT alt routes ──────────────────────────────────────
+  // ── AMAZON CIRCUIT alt routes ──────────────────────────────────────────
   3: [
     {
-      name:       'River Ford',
+      name:       'River Crossing',
       entryLabel: '← RIVER FORD',
-      mainEntryZ: 95,
-      mainExitZ:  215,
-      entryDir:   -1,
-      entryX:     0.55,
-      hillColor:  '#0a1a20',
+      mainEntryZ: 95,   mainExitZ: 230,
+      entryDir:   -1, entryX: 0.48,
+      hillColor:  '#082818',
+      skyTop: '#061018', skyBot: '#0a2030',   // riverside dusk
       sections: [
-        { len: 30, curve:  0.0, riverCrossing: true, surfaceGrip: 0.55 }, // wide slippery river
-        { len: 20, curve:  1.2, riverCrossing: true, surfaceGrip: 0.58 }, // river bend
-        { len: 20, curve: -1.2, riverCrossing: true, surfaceGrip: 0.58 }, // S-bend
-        { len: 25, curve:  0.0, item: 'grip', surfaceGrip: 0.62 },        // mid-river pickup
-        { len: 20, curve:  0.0 },                                          // river bank exit
+        { len: 10, curve: -4.5, riverCrossing: true, surfaceGrip: 0.58 }, // SHARP LEFT — into river
+        { len: 30, curve: -1.5, riverCrossing: true, surfaceGrip: 0.55 }, // sweeping left crossing
+        { len: 20, curve:  2.5, riverCrossing: true, surfaceGrip: 0.55 }, // right S-curve in water
+        { len: 20, curve: -2.5, riverCrossing: true, surfaceGrip: 0.55 },
+        { len: 15, curve:  0.0, item: 'grip', surfaceGrip: 0.62 },
+        { len: 25, curve:  1.5, surfaceGrip: 0.68 },                      // riverbank exit
+        { len: 15, curve:  4.2 },                                          // HARD RIGHT — back to main
+        { len: 15, curve:  0.0 },
       ]
     },
     {
-      name:       'Canopy Path',
+      name:       'Canopy Climb',
       entryLabel: '→ CANOPY PATH',
-      mainEntryZ: 290,
-      mainExitZ:  435,
-      entryDir:   1,
-      entryX:     0.55,
-      hillColor:  '#0a1a08',
+      mainEntryZ: 290,  mainExitZ: 450,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#051008',
+      skyTop: '#040808', skyBot: '#0a1410',   // dense canopy — almost no sky
       sections: [
-        { len: 25, curve:  0.0, fogZone: true },        // enter canopy — dark
-        { len: 20, curve: -2.2, fogZone: true },        // left through branches
-        { len: 20, curve:  2.2, fogZone: true },        // right
-        { len: 25, curve:  0.0, fogZone: true, item: 'nitro' }, // canopy straight
-        { len: 20, curve: -1.8, fogZone: true },
-        { len: 25, curve:  0.0 },                       // exit canopy
+        { len: 10, curve:  4.5, fogZone: true },       // SHARP RIGHT — up into canopy
+        { len: 25, curve:  2.0, fogZone: true },       // sweeping right — elevated path
+        { len: 20, curve: -3.0, fogZone: true },       // sharp left through branches
+        { len: 20, curve:  2.5, fogZone: true },       // right — canopy traverse
+        { len: 15, curve:  0.0, fogZone: true, item: 'nitro' },
+        { len: 25, curve: -2.5, fogZone: true },       // left curve — canopy descent
+        { len: 20, curve: -2.0 },                       // descend back toward main
+        { len: 15, curve: -4.5 },                       // SHARP LEFT — back to main
+        { len: 15, curve:  0.0 },
       ]
     },
     {
       name:       'Cave Passage',
       entryLabel: '← CAVE PASSAGE',
-      mainEntryZ: 550,
-      mainExitZ:  670,
-      entryDir:   -1,
-      entryX:     0.52,
-      hillColor:  '#050805',
+      mainEntryZ: 550,  mainExitZ: 690,
+      entryDir:   -1, entryX: 0.48,
+      hillColor:  '#020504',
+      skyTop: '#010203', skyBot: '#030608',   // cave black
       sections: [
-        { len: 15, curve:  0.0, fogZone: true, roadWidthMult: 0.82 }, // cave entrance
-        { len: 25, curve: -2.0, fogZone: true, roadWidthMult: 0.80 }, // left tunnel
-        { len: 25, curve:  2.0, fogZone: true, roadWidthMult: 0.80 }, // right tunnel
-        { len: 15, curve:  0.0, fogZone: true, item: 'shield', roadWidthMult: 0.85 },
-        { len: 20, curve:  0.0, fogZone: true },        // cave straight
-        { len: 15, curve:  0.0 },                       // exit into jungle
+        { len: 10, curve: -4.5, fogZone: true, roadWidthMult: 0.85 }, // SHARP LEFT — cave mouth
+        { len: 25, curve: -2.2, fogZone: true, roadWidthMult: 0.80 }, // left through cave
+        { len: 20, curve:  3.0, fogZone: true, roadWidthMult: 0.78 }, // right — cave bend
+        { len: 15, curve:  0.0, fogZone: true, item: 'shield', roadWidthMult: 0.82 },
+        { len: 25, curve: -2.5, fogZone: true, roadWidthMult: 0.80 }, // left — cave exit approach
+        { len: 15, curve:  4.5 },                                      // HARD RIGHT — exit cave
+        { len: 15, curve:  0.0 },
       ]
     },
   ],
 
-  // ── SAHARA DESERT alt routes ───────────────────────────────────────
+  // ── SAHARA DESERT alt routes ───────────────────────────────────────────
   4: [
     {
-      name:       'Dune Run',
-      entryLabel: '→ DUNE RUN',
-      mainEntryZ: 165,
-      mainExitZ:  305,
-      entryDir:   1,
-      entryX:     0.55,
-      hillColor:  '#d4a840',
+      name:       'Dune Rally',
+      entryLabel: '→ DUNE RALLY',
+      mainEntryZ: 165,  mainExitZ: 320,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#b89030',
+      skyTop: '#200a00', skyBot: '#d06010',   // intense orange desert sunset
       sections: [
-        { len: 40, curve:  0.0, surfaceGrip: 0.72, heatZone: true }, // open dunes
-        { len: 25, curve:  1.5, surfaceGrip: 0.70 },                  // dune crest
-        { len: 25, curve: -1.5, surfaceGrip: 0.70 },                  // dune valley
-        { len: 30, curve:  0.0, surfaceGrip: 0.72, item: 'cool' },    // cool pickup
-        { len: 20, curve:  1.0 },                                      // rejoin approach
+        { len: 10, curve:  4.2, surfaceGrip: 0.72, heatZone: true }, // SHARP RIGHT — into dunes
+        { len: 30, curve:  1.8, surfaceGrip: 0.70, heatZone: true }, // sweeping right dune crest
+        { len: 25, curve: -2.5, surfaceGrip: 0.70 },                  // sharp left dune valley
+        { len: 25, curve:  2.0, surfaceGrip: 0.72, heatZone: true }, // right crest again
+        { len: 15, curve:  0.0, surfaceGrip: 0.72, item: 'cool' },
+        { len: 25, curve: -1.5, surfaceGrip: 0.74 },                  // left — return curve
+        { len: 15, curve: -4.0 },                                      // HARD LEFT — back to road
+        { len: 15, curve:  0.0 },
       ]
     },
     {
       name:       'Ancient Ruins',
       entryLabel: '← ANCIENT RUINS',
-      mainEntryZ: 390,
-      mainExitZ:  510,
-      entryDir:   -1,
-      entryX:     0.55,
-      hillColor:  '#6a5030',
+      mainEntryZ: 390,  mainExitZ: 530,
+      entryDir:   -1, entryX: 0.48,
+      hillColor:  '#503a18',
+      skyTop: '#180a00', skyBot: '#503010',   // ancient dusty sunset
       sections: [
-        { len: 15, curve:  3.5, roadWidthMult: 0.82 }, // sharp entry into ruins
-        { len: 20, curve:  0.0, roadWidthMult: 0.80 }, // ruins corridor
-        { len: 15, curve: -3.5, roadWidthMult: 0.82 }, // sharp left
-        { len: 20, curve:  0.0, roadWidthMult: 0.80, item: 'nitro' }, // ruins straight
-        { len: 15, curve:  2.5, roadWidthMult: 0.85 }, // right hairpin
-        { len: 15, curve:  0.0 },                      // exit ruins
+        { len: 10, curve: -4.5, roadWidthMult: 0.85 }, // SHARP LEFT — into ruins entrance
+        { len: 20, curve: -2.5, roadWidthMult: 0.82 }, // sweeping left through pillars
+        { len: 18, curve:  3.8, roadWidthMult: 0.80 }, // sharp right — ruins corner
+        { len: 20, curve:  0.0, roadWidthMult: 0.82 }, // ruins corridor
+        { len: 18, curve: -3.5, roadWidthMult: 0.80, item: 'nitro' }, // sharp left — inner court
+        { len: 20, curve:  2.8, roadWidthMult: 0.82 }, // right — exit arch
+        { len: 15, curve:  4.2 },                       // HARD RIGHT — back to desert road
+        { len: 15, curve:  0.0 },
       ]
     },
     {
-      name:       'Oasis Track',
+      name:       'Oasis Circuit',
       entryLabel: '→ OASIS',
-      mainEntryZ: 610,
-      mainExitZ:  730,
-      entryDir:   1,
-      entryX:     0.52,
-      hillColor:  '#1a4a20',
+      mainEntryZ: 610,  mainExitZ: 745,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#104a20',
+      skyTop: '#082010', skyBot: '#204a30',   // cool green oasis sky
       sections: [
-        { len: 30, curve:  0.0 },           // palm-lined approach
-        { len: 25, curve:  1.8 },           // oasis right-hander
-        { len: 25, curve: -1.8 },           // matching left
-        { len: 30, curve:  0.0, item: 'turbo' }, // oasis flat + turbo
-        { len: 15, curve: -1.2 },           // exit back to desert
+        { len: 10, curve:  4.0 },             // SHARP RIGHT — turn into oasis
+        { len: 25, curve: -2.0 },             // sweeping left around oasis lake
+        { len: 20, curve:  0.0 },             // shaded straight — palm trees
+        { len: 20, curve:  2.5 },             // right — far end of oasis
+        { len: 25, curve: -2.5, item: 'turbo' }, // left — oasis return
+        { len: 20, curve:  1.5 },             // gentle right — exit road
+        { len: 15, curve: -4.0 },             // HARD LEFT — back to desert
+        { len: 15, curve:  0.0 },
       ]
     },
   ],
 
-  // ── GREAT WALL alt routes ──────────────────────────────────────────
+  // ── GREAT WALL alt routes ──────────────────────────────────────────────
   5: [
     {
       name:       'Below Wall',
       entryLabel: '← BELOW WALL',
-      mainEntryZ: 105,
-      mainExitZ:  230,
-      entryDir:   -1,
-      entryX:     0.55,
-      hillColor:  '#3a4030',
+      mainEntryZ: 105,  mainExitZ: 250,
+      entryDir:   -1, entryX: 0.48,
+      hillColor:  '#2a3020',
+      skyTop: '#101820', skyBot: '#203040',   // misty mountain base
       sections: [
-        { len: 50, curve:  0.0, roadWidthMult: 1.15 }, // wide base-of-wall path
-        { len: 20, curve:  1.2, roadWidthMult: 1.10 }, // gentle right
-        { len: 30, curve:  0.0, item: 'nitro', roadWidthMult: 1.15 }, // long straight
-        { len: 20, curve: -1.2 },                      // merge back
+        { len: 10, curve: -4.5, roadWidthMult: 1.15 }, // SHARP LEFT — drop below wall
+        { len: 35, curve: -1.5, roadWidthMult: 1.18 }, // sweeping left along wall base
+        { len: 30, curve:  0.0, roadWidthMult: 1.20, item: 'nitro' }, // wide base straight
+        { len: 25, curve:  1.8, roadWidthMult: 1.15 }, // right — return curve
+        { len: 20, curve:  0.0, roadWidthMult: 1.12 }, // approach back up
+        { len: 15, curve:  4.5 },                       // HARD RIGHT — climb back to wall
+        { len: 15, curve:  0.0 },
       ]
     },
     {
       name:       'Mountain Village',
       entryLabel: '→ MOUNTAIN VILLAGE',
-      mainEntryZ: 330,
-      mainExitZ:  475,
-      entryDir:   1,
-      entryX:     0.55,
-      hillColor:  '#4a2010',
+      mainEntryZ: 330,  mainExitZ: 490,
+      entryDir:   1, entryX: 0.48,
+      hillColor:  '#381510',
+      skyTop: '#100808', skyBot: '#302010',   // warm village lantern glow
       sections: [
-        { len: 20, curve:  2.0, roadWidthMult: 0.78 }, // village entrance right
-        { len: 25, curve:  0.0, roadWidthMult: 0.76 }, // village street
-        { len: 20, curve: -2.0, roadWidthMult: 0.78 }, // left through market
-        { len: 20, curve:  0.0, item: 'shield', roadWidthMult: 0.80 },
-        { len: 20, curve:  1.8, roadWidthMult: 0.82 }, // right at temple
-        { len: 20, curve:  0.0 },                      // exit village
+        { len: 10, curve:  4.5, roadWidthMult: 0.80 }, // SHARP RIGHT — into village gate
+        { len: 20, curve: -2.5, roadWidthMult: 0.76 }, // left — main village street
+        { len: 20, curve:  2.0, roadWidthMult: 0.75 }, // right — market alley
+        { len: 20, curve:  0.0, roadWidthMult: 0.76 }, // village square straight
+        { len: 18, curve: -3.0, roadWidthMult: 0.78, item: 'shield' }, // left — temple road
+        { len: 20, curve:  2.5, roadWidthMult: 0.80 }, // right — exit road
+        { len: 15, curve: -4.5 },                       // SHARP LEFT — back to main wall
+        { len: 15, curve:  0.0 },
       ]
     },
     {
-      name:       "Dragon's Back Ridge",
+      name:       "Dragon's Back",
       entryLabel: '← DRAGON RIDGE',
-      mainEntryZ: 590,
-      mainExitZ:  730,
-      entryDir:   -1,
-      entryX:     0.52,
-      hillColor:  '#2a3020',
+      mainEntryZ: 590,  mainExitZ: 745,
+      entryDir:   -1, entryX: 0.48,
+      hillColor:  '#1a2018',
+      skyTop: '#080510', skyBot: '#180f28',   // dramatic ridge purple sky
       sections: [
-        { len: 25, curve:  0.0 },           // ridge approach
-        { len: 25, curve:  4.0 },           // sharp right — exposed edge
-        { len: 20, curve:  0.0, item: 'dragon' }, // dragon orb at exposed peak
-        { len: 25, curve: -4.0 },           // sharp left — other side
-        { len: 25, curve:  0.0 },           // ridge descent back
+        { len: 10, curve: -4.8 },             // SHARP LEFT — onto dragon ridge
+        { len: 25, curve: -2.5 },             // sweeping left — first spine
+        { len: 20, curve:  4.0 },             // hard right — spine peak
+        { len: 15, curve:  0.0, item: 'dragon' }, // dragon orb at highest point
+        { len: 25, curve: -3.5 },             // sharp left — down the other side
+        { len: 20, curve:  3.0 },             // right — second ridge peak
+        { len: 20, curve: -2.0 },             // left — descent
+        { len: 15, curve:  4.5 },             // HARD RIGHT — back to wall
+        { len: 15, curve:  0.0 },
       ]
     },
   ],
