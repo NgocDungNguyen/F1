@@ -206,16 +206,16 @@ function renderTrackSelect(W, H, mx, my, clicked, selectedIdx) {
   _bg();
   _hdr('SELECT TRACK', H * 0.07);
 
-  const AREA_Y = H * 0.13;
-  const AREA_H = H * 0.70;
-  const BTN_Y  = H * 0.85;
-  const BTN_H  = H * 0.10;
-
-  const gap   = _p(8);
-  const cCols = 2;
-  const cRows = 3;
-  const cW    = (W - gap * (cCols + 1)) / cCols;
-  const cH    = (AREA_H - gap * (cRows + 1)) / cRows;
+  const BTN_H  = Math.max(_p(36), H * 0.08);
+  const gap    = _p(8);
+  const cCols  = 2;
+  const cRows  = 3;
+  // Reserve space for NEXT/BACK buttons at the bottom
+  const AREA_Y = H * 0.12;
+  const AREA_H = H - AREA_Y - BTN_H - gap * 3;
+  const BTN_Y  = AREA_Y + AREA_H + gap * 2;
+  const cW     = (W - gap * (cCols + 1)) / cCols;
+  const cH     = (AREA_H - gap * (cRows + 1)) / cRows;
 
   let action = null;
 
@@ -301,15 +301,14 @@ function renderDifficultySelect(W, H, mx, my, clicked, selectedDiff) {
   _bg();
   _hdr('SELECT DIFFICULTY', H * 0.07);
 
-  const AREA_Y = H * 0.14;
-  const AREA_H = H * 0.50;
-  const BTN_Y  = H * 0.67;
-  const BTN_H  = H * 0.11;
-  const gap    = _p(8);
-
+  const BTN_H   = Math.max(_p(36), H * 0.09);
+  const gap     = _p(8);
   const diffs   = ['easy', 'medium', 'hard', 'asian'];
   const cCols   = _mob() ? 2 : 4;
   const cRows   = Math.ceil(diffs.length / cCols);
+  const AREA_Y  = H * 0.13;
+  const AREA_H  = H - AREA_Y - BTN_H - gap * 3;
+  const BTN_Y   = AREA_Y + AREA_H + gap * 2;
   const cW      = (W - gap * (cCols + 1)) / cCols;
   const cH      = (AREA_H - gap * (cRows + 1)) / cRows;
 
@@ -405,13 +404,13 @@ function renderVehicleSelect(W, H, mx, my, clicked, selectedType) {
   _bg();
   _hdr('SELECT VEHICLE', H * 0.07);
 
-  const AREA_Y = H * 0.14;
-  const AREA_H = H * 0.50;
-  const BTN_Y  = H * 0.67;
-  const BTN_H  = H * 0.11;
+  const BTN_H  = Math.max(_p(36), H * 0.09);
   const gap    = _p(8);
   const cCols  = 2;
   const cRows  = 2;
+  const AREA_Y = H * 0.13;
+  const AREA_H = H - AREA_Y - BTN_H - gap * 3;
+  const BTN_Y  = AREA_Y + AREA_H + gap * 2;
   const cW     = (W - gap * (cCols + 1)) / cCols;
   const cH     = (AREA_H - gap * (cRows + 1)) / cRows;
 
@@ -518,8 +517,8 @@ function renderCarCustomize(W, H, mx, my, clicked, vehicleType) {
   _bg();
   _hdr('CUSTOMISE – ' + veh.name, H * 0.07);
 
-  const BTN_Y = H * 0.64;
-  const BTN_H = H * 0.12;
+  const BTN_H = Math.max(_p(38), H * 0.10);
+  const BTN_Y = H - BTN_H - _p(12);
 
   // ── Split: left = car preview, right = controls ──────────────────────
   const splitX = _mob() ? W * 0.38 : W * 0.40;

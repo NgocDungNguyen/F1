@@ -24,9 +24,36 @@ let clickedThisFrame = false;
 // ── Resize ────────────────────────────────────────────────────────────────
 function resize() {
   const vv = window.visualViewport;
-  const nw = vv ? Math.round(vv.width)  : window.innerWidth;
-  const nh = vv ? Math.round(vv.height) : window.innerHeight;
-  if (nw !== W || nh !== H) { W = canvas.width = nw; H = canvas.height = nh; }
+  const nw = vv ? Math.round(vv.width)     : window.innerWidth;
+  const nh = vv ? Math.round(vv.height)    : window.innerHeight;
+  const ox = vv ? Math.round(vv.offsetLeft) : 0;
+  const oy = vv ? Math.round(vv.offsetTop)  : 0;
+
+  if (nw !== W || nh !== H) {
+    W = canvas.width  = nw;
+    H = canvas.height = nh;
+  }
+  // Sync CSS pixel size to exactly match the canvas bitmap — eliminates the
+  // CSS-to-canvas coordinate scale mismatch that causes touch misalignment.
+  canvas.style.width  = nw + 'px';
+  canvas.style.height = nh + 'px';
+  // Position canvas at visual viewport offset (accounts for visible address bar).
+  canvas.style.left   = ox + 'px';
+  canvas.style.top    = oy + 'px';
+}
+
+// ── Touch/mouse coordinate helper ────────────────────────────────────────
+// Converts CSS client coordinates to canvas pixel coordinates.
+// Required because canvas CSS size may differ from canvas bitmap size
+// (especially when browser chrome is visible on mobile).
+function _toCanvas(clientX, clientY) {
+  const r  = canvas.getBoundingClientRect();
+  const sx = r.width  > 0 ? W / r.width  : 1;
+  const sy = r.height > 0 ? H / r.height : 1;
+  return {
+    x: (clientX - r.left) * sx,
+    y: (clientY - r.top)  * sy,
+  };
 }
 
 // ── Orientation / mobile controls ─────────────────────────────────────────
@@ -237,7 +264,7 @@ function render() {
 
     case 'MENU': {
       const a = renderMenu(W, H, raceData.raceTime, mouseX, mouseY, clickedThisFrame);
-      if (a === 'PLAY') STATE = 'DIFFICULTY_SELECT';
+      if (a === 'PLAY') { if (typeof tryFullscreen === 'function') tryFullscreen(); STATE = 'DIFFICULTY_SELECT'; }
       if (a === 'HOW')  STATE = 'HOW';
       break;
     }
@@ -283,7 +310,7 @@ function render() {
       if (a) {
         if (typeof a === 'string' && a.startsWith('#')) carConfig.color = a;
         if (typeof a === 'object' && a.decal)           carConfig.decal = a.decal;
-        if (a === 'START') startRace();
+        if (a === 'START') { if (typeof tryFullscreen === 'function') tryFullscreen(); startRace(); }
         if (a === 'BACK')  STATE = 'VEHICLE_SELECT';
       }
       break;
@@ -416,10 +443,29 @@ function loop(ts) {
 }
 
 // ── INPUT WIRING ───────────────────────────────────────────────────────────
-canvas.addEventListener('mousemove', e  => { mouseX = e.clientX; mouseY = e.clientY; });
-canvas.addEventListener('mousedown', e  => { mouseX = e.clientX; mouseY = e.clientY; clickedThisFrame = true; resumeAudio(); });
-canvas.addEventListener('touchstart', e => { if (e.touches.length > 0) { mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; } resumeAudio(); }, { passive: true });
-canvas.addEventListener('touchend',   e => { if (e.changedTouches.length > 0) { mouseX = e.changedTouches[0].clientX; mouseY = e.changedTouches[0].clientY; clickedThisFrame = true; } }, { passive: true });
+canvas.addEventListener('mousemove', e => {
+  const c = _toCanvas(e.clientX, e.clientY);
+  mouseX = c.x; mouseY = c.y;
+});
+canvas.addEventListener('mousedown', e => {
+  const c = _toCanvas(e.clientX, e.clientY);
+  mouseX = c.x; mouseY = c.y;
+  clickedThisFrame = true; resumeAudio();
+});
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length > 0) {
+    const c = _toCanvas(e.touches[0].clientX, e.touches[0].clientY);
+    mouseX = c.x; mouseY = c.y;
+  }
+  if (typeof tryFullscreen === 'function') tryFullscreen();
+  resumeAudio();
+}, { passive: true });
+canvas.addEventListener('touchend', e => {
+  if (e.changedTouches.length > 0) {
+    const c = _toCanvas(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    mouseX = c.x; mouseY = c.y; clickedThisFrame = true;
+  }
+}, { passive: true });
 
 // ── INIT ───────────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {

@@ -13,8 +13,14 @@ html, body {
 /* ── Canvas ── */
 #gameCanvas {
   position: fixed;
+  /* top/left/width/height are overridden by JS resize() to match visualViewport exactly.
+     These CSS values are only used before JS runs (first paint). */
   top: 0; left: 0;
-  width: 100vw; height: 100vh;
+  width: 100%;
+  /* 100dvh = dynamic viewport height, excludes browser chrome on modern mobile.
+     Falls back to 100vh on older browsers. */
+  height: 100vh;    /* fallback for older browsers */
+  height: 100dvh;   /* modern: excludes browser chrome; overrides 100vh if supported */
   display: block;
   image-rendering: pixelated;
   touch-action: none;
