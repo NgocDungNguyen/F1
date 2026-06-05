@@ -74,33 +74,70 @@ function renderHUD(W, H, data) {
   ctx.fillStyle = `rgb(${r2},${g2},18)`;
   roundRect(ctx, bX2, bY2, bW2 * frac, bH2, 3, true, false);
 
-  // ── TOP-RIGHT: Boost strip (below speed) ───────────────────────────
+  // ── TOP-RIGHT: Nitro bar (Asphalt-style fire gradient) ─────────────
   const bsY2 = spY + spH + _h(6);
-  const bsH  = _h(26);
-  if (boosting) {
-    ctx.fillStyle = 'rgba(0,255,200,0.12)';
-    roundRect(ctx, spX, bsY2, spW, bsH, _h(5), true, false);
-    ctx.fillStyle    = '#00ffcc';
-    ctx.font         = `bold ${_h(12)}px monospace`;
-    ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
-    ctx.shadowColor  = '#00ffcc'; ctx.shadowBlur = 8;
-    ctx.fillText('⚡ BOOST ⚡', spX + spW / 2, bsY2 + bsH / 2);
-    ctx.shadowBlur = 0;
+  const bsH  = _h(28);
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  roundRect(ctx, spX, bsY2, spW, bsH, _h(5), true, false);
+
+  if (boosting || (player && player.dragonTimer > 0)) {
+    // Active nitro — fire gradient bar + glow text
+    const fireGrad = ctx.createLinearGradient(spX + _h(5), 0, spX + spW - _h(5), 0);
+    fireGrad.addColorStop(0,   '#ff2200');
+    fireGrad.addColorStop(0.5, '#ff8800');
+    fireGrad.addColorStop(1,   '#ffee00');
+    ctx.fillStyle = fireGrad;
+    roundRect(ctx, spX + _h(4), bsY2 + _h(4), spW - _h(8), bsH - _h(8), _h(3), true, false);
+    ctx.fillStyle   = '#fff'; ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 10;
+    ctx.font        = `bold ${_h(12)}px monospace`;
+    ctx.textAlign   = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⚡ NITRO ACTIVE ⚡', spX + spW / 2, bsY2 + bsH / 2);
+    ctx.shadowBlur  = 0;
   } else if (boostCooldown > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    roundRect(ctx, spX, bsY2, spW, bsH, _h(5), true, false);
-    ctx.fillStyle    = '#777'; ctx.font = `${_h(11)}px monospace`;
-    ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(`BOOST  ${Math.ceil(boostCooldown)}s`, spX + spW / 2, bsY2 + bsH / 2);
-    const cdF = 1 - boostCooldown / (vehDef ? vehDef.boostCooldown : BOOST_COOLDOWN);
-    ctx.fillStyle = '#336633';
-    ctx.fillRect(spX + _h(7), bsY2 + bsH - _h(4), (spW - _h(14)) * cdF, _h(3));
+    // Charging — show fill progress
+    const cdF = Math.max(0, 1 - boostCooldown / (vehDef ? vehDef.boostCooldown : BOOST_COOLDOWN));
+    const chargeGrad = ctx.createLinearGradient(spX + _h(5), 0, spX + spW - _h(5), 0);
+    chargeGrad.addColorStop(0, '#331100');
+    chargeGrad.addColorStop(cdF, '#ff6600');
+    chargeGrad.addColorStop(1, '#110000');
+    ctx.fillStyle = chargeGrad;
+    roundRect(ctx, spX + _h(4), bsY2 + _h(4), (spW - _h(8)) * cdF, bsH - _h(8), _h(3), true, false);
+    ctx.fillStyle = '#aa4400'; ctx.font = `${_h(10)}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`NITRO  ${Math.ceil(boostCooldown)}s`, spX + spW / 2, bsY2 + bsH / 2);
   } else {
-    ctx.fillStyle = 'rgba(0,50,35,0.65)';
-    roundRect(ctx, spX, bsY2, spW, bsH, _h(5), true, false);
-    ctx.fillStyle    = '#00ee88'; ctx.font = `bold ${_h(11)}px monospace`;
-    ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('BOOST READY', spX + spW / 2, bsY2 + bsH / 2);
+    // Ready — pulsing fire
+    const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.006);
+    const rdyGrad = ctx.createLinearGradient(spX + _h(5), 0, spX + spW - _h(5), 0);
+    rdyGrad.addColorStop(0,   '#ff1100');
+    rdyGrad.addColorStop(0.5, `rgba(255,${Math.round(100 + 80 * pulse)},0,1)`);
+    rdyGrad.addColorStop(1,   '#ffcc00');
+    ctx.fillStyle = rdyGrad;
+    roundRect(ctx, spX + _h(4), bsY2 + _h(4), spW - _h(8), bsH - _h(8), _h(3), true, false);
+    ctx.fillStyle   = '#fff'; ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 8 * pulse;
+    ctx.font        = `bold ${_h(12)}px monospace`;
+    ctx.textAlign   = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('🔥 NITRO READY', spX + spW / 2, bsY2 + bsH / 2);
+    ctx.shadowBlur  = 0;
+  }
+
+  // ── Drift meter bar (below nitro) ──────────────────────────────────
+  if (player && (player.driftMeter > 0.01 || player.isDrifting)) {
+    const dmY = bsY2 + bsH + _h(4);
+    const dmH = _h(18);
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    roundRect(ctx, spX, dmY, spW, dmH, _h(4), true, false);
+    const driftGrad = ctx.createLinearGradient(spX + _h(4), 0, spX + spW - _h(4), 0);
+    driftGrad.addColorStop(0,   '#ff6600');
+    driftGrad.addColorStop(0.6, '#ffaa00');
+    driftGrad.addColorStop(1,   '#ffee00');
+    ctx.fillStyle = driftGrad;
+    const dmPulse = player.driftMeter >= 0.95 ? (0.85 + 0.15 * Math.sin(Date.now() * 0.01)) : 1;
+    roundRect(ctx, spX + _h(3), dmY + _h(3), (spW - _h(6)) * player.driftMeter * dmPulse, dmH - _h(6), _h(2), true, false);
+    ctx.fillStyle = player.isDrifting ? '#ffee00' : '#ffaa44';
+    ctx.font      = `bold ${_h(9)}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(player.isDrifting ? `DRIFTING  ${player.driftTimer.toFixed(1)}s` : 'DRIFT METER', spX + spW / 2, dmY + dmH / 2);
   }
 
   // ── Vehicle-specific HUD panel (below boost strip) ────────────────────
@@ -343,10 +380,24 @@ function renderHUD(W, H, data) {
     ctx.fillStyle    = 'rgba(255,255,255,0.28)';
     ctx.font         = `${_h(10)}px monospace`;
     ctx.textAlign    = 'center'; ctx.textBaseline = 'bottom';
-    ctx.fillText('↑ Gas  ↓ Brake  ← → Steer  SPACE Boost  V View  ESC Pause', W / 2, H * 0.695);
+    ctx.fillText('↑ Gas  ↓ Brake  ← → Steer  SPACE Nitro  V View  ESC Pause', W / 2, H * 0.695);
+  }
+
+  // ── Takedown / stunt badge (top-left, below minimap) ────────────────
+  if (player && player.takedowns > 0) {
+    const tbX = _h(10), tbY = _h(10) + _h(38) + _h(6) + _h(38) + _h(8) + _h(108) + _h(6);
+    const tbW = _h(138), tbH = _h(22);
+    ctx.fillStyle = 'rgba(60,0,0,0.75)';
+    roundRect(ctx, tbX, tbY, tbW, tbH, _h(4), true, false);
+    ctx.fillStyle = '#ff6644'; ctx.font = `bold ${_h(10)}px monospace`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(`💥 ×${player.takedowns} TAKEDOWNS`, tbX + _h(6), tbY + tbH / 2);
   }
 
   ctx.restore();
+
+  // ── Floating popups (rendered last, above everything) ───────────────
+  if (typeof renderPopups === 'function') renderPopups(W, H, _loopDt || 0.016);
 }
 
 // ── Mini-map ─────────────────────────────────────────────────────────────

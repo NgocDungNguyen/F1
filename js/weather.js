@@ -268,6 +268,15 @@ function renderWeatherOverlay(W, H) {
         ctx.fillStyle = `rgba(60,40,20,${alpha * 0.45})`;
         ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size * 0.6);
         break;
+      case 'driftSmoke': {
+        // Expanding gray circle that fades out — drawn in screen space
+        const age  = 1 - p.life / 0.80;   // 0→1 as particle ages
+        const r    = p.size * (0.4 + age * 1.2);
+        const a    = alpha * 0.50 * (1 - age * 0.6);
+        ctx.fillStyle = `rgba(180,180,180,${a})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
     }
   }
   ctx.restore();

@@ -28,6 +28,16 @@ function initPlayer() {
     heat:           0,     // Sahara overheat 0–1
     slipstreaming:  false, // Monza draft active
     onShortcut:     false, // on left fork strip (shortcut path)
+    // ── Drift system ─────────────────────────
+    prevX:          0,     // last frame x position (for lateral velocity)
+    lateralSpeed:   0,     // world units/sec lateral movement
+    isDrifting:     false,
+    driftTimer:     0,     // continuous seconds spent drifting
+    driftMeter:     0,     // 0–1, fills from drifting → awards nitro
+    // ── Stunt tracking ───────────────────────
+    takedowns:      0,
+    nearMisses:     0,
+    totalDriftTime: 0,
   };
 }
 
@@ -109,6 +119,47 @@ function updatePlayer(dt, inp) {
   // ── Oil slick drift (Monaco Casino exit) ──────────────────────────────
   if (seg && seg.oilSlick && speedFrac > 0.30) {
     player.x += (Math.random() - 0.5) * 0.016 * speedFrac;
+  }
+
+  // ── Drift detection ────────────────────────────────────────────────────
+  player.lateralSpeed = (player.x - player.prevX) / Math.max(dt, 0.001);
+  player.prevX        = player.x;
+
+  const drifting = Math.abs(player.lateralSpeed) > 0.32
+                && speedFrac > 0.48
+                && (inp.left || inp.right)
+                && !seg?.forkSection;   // don't count divider stumbling as drift
+
+  if (drifting) {
+    if (!player.isDrifting) {
+      // Drift just started — play squeal
+      if (typeof playTireSqueal === 'function') playTireSqueal(speedFrac);
+    }
+    player.isDrifting    = true;
+    player.driftTimer   += dt;
+    player.totalDriftTime += dt;
+    const gain = Math.abs(player.lateralSpeed) * dt * 0.18;
+    player.driftMeter = Math.min(1, player.driftMeter + gain);
+    // Continuous drift audio
+    if (typeof playDriftAudio === 'function') playDriftAudio(player.lateralSpeed);
+  } else {
+    if (player.isDrifting) {
+      // Drift just ended — award nitro reduction proportional to meter
+      if (player.driftMeter > 0.18) {
+        const reward = player.driftMeter;
+        player.boostCooldown = Math.max(0, player.boostCooldown - reward * 12);
+        if (typeof showPopup === 'function') {
+          showPopup(
+            player.driftTimer > 1.5 ? 'PERFECT DRIFT! 🔥' : 'DRIFT!',
+            '#ff8800', 1.2
+          );
+        }
+      }
+      if (typeof stopDriftAudio === 'function') stopDriftAudio();
+    }
+    player.isDrifting  = false;
+    player.driftTimer  = 0;
+    player.driftMeter  = Math.max(0, player.driftMeter - dt * 0.45);
   }
 
   // ── High-speed cornering drag ──────────────────────────────────────────
@@ -218,4 +269,5 @@ function updatePlayer(dt, inp) {
 
   // ── Audio ──────────────────────────────────────────────────────────────
   updateEngineSound(player.speed / (player.boosting ? veh.boostSpeed : veh.maxSpeed));
+  if (typeof updateWindRush === 'function') updateWindRush(speedFrac);
 }

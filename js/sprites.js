@@ -484,6 +484,22 @@ function renderPlayerCar(W, H) {
     ctx.globalAlpha = 1;
   }
   ctx.restore();
+
+  // Nitro fire trail when boosting or dragon active
+  if (player.boosting || player.dragonTimer > 0) {
+    if (typeof renderNitroFire === 'function') {
+      renderNitroFire(carX + drift, carY + carW * 0.55, carW, player.dragonTimer > 0);
+    }
+  }
+
+  // Drift smoke from tires during hard cornering
+  const speedFrac = player.speed / (veh.maxSpeed || 14);
+  if (player.isDrifting && speedFrac > 0.40) {
+    if (typeof spawnDriftSmoke === 'function') {
+      spawnDriftSmoke(carX + drift + (Math.random() - 0.5) * carW * 0.8,
+                      carY + carW * 0.35);
+    }
+  }
 }
 
 // ── Render all AI cars into the scene ────────────────────────────────────

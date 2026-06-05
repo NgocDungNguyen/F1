@@ -154,7 +154,15 @@ function checkLap(prevZ) {
   raceData.lapStartTime = raceData.raceTime;
   raceData.lap++;
   if (raceData.lap > TOTAL_LAPS) {
-    finishData = { totalTime: raceData.raceTime, lapTimes: raceData.lapTimes, position: raceData.position };
+    finishData = {
+      totalTime:  raceData.raceTime,
+      lapTimes:   raceData.lapTimes,
+      position:   raceData.position,
+      takedowns:  player ? (player.takedowns || 0) : 0,
+      nearMisses: player ? (player.nearMisses || 0) : 0,
+      driftTime:  player ? Math.round(player.totalDriftTime || 0) : 0,
+      animTime:   0,
+    };
     STATE = 'FINISH';
     silenceEngine();
     stopRainAmbient();
@@ -165,11 +173,40 @@ function checkLap(prevZ) {
   }
 }
 
+// ── Near-miss detection ───────────────────────────────────────────────────
+function checkNearMisses() {
+  if (!player || !aiCars) return;
+  const veh       = VEHICLE_DEFS[carConfig.vehicleType] || VEHICLE_DEFS.f1;
+  const hitRadius = veh.collisionRadius + 0.13;
+  for (const ai of aiCars) {
+    let relZ = ai.z - player.z;
+    if (relZ < 0) relZ += TRACK_SEGMENTS;
+    if (relZ < 0.4 || relZ > 4.0) continue;
+    const latDiff = Math.abs(player.x - ai.x);
+    if (latDiff < hitRadius * 1.8 && latDiff > hitRadius) {
+      if (!ai._nearMissedThisFrame) {
+        player.boostCooldown = Math.max(0, player.boostCooldown - 4);
+        player.nearMisses    = (player.nearMisses || 0) + 1;
+        if (typeof showPopup === 'function') showPopup('NEAR MISS! ✨', '#ffee44', 1.0);
+        ai._nearMissedThisFrame = true;
+      }
+    } else {
+      ai._nearMissedThisFrame = false;
+    }
+  }
+}
+
 // ── UPDATE ─────────────────────────────────────────────────────────────────
 function update(dt) {
   switch (STATE) {
     case 'COUNTDOWN':
       raceData.countdownT += dt;
+      updateCameraShake(dt);
+      // Trigger camera shake + flash exactly once at GO! moment
+      if (raceData.countdownT >= 4.0 && raceData.countdownT - dt < 4.0) {
+        triggerCameraShake(1.2);
+        triggerFlash('#00ff88', 0.70);
+      }
       if (raceData.countdownT >= 5) STATE = 'RACING';
       break;
 
@@ -179,10 +216,12 @@ function update(dt) {
       updatePlayer(dt, getInput());
       updateAI(dt);
       updateWeather(dt);
+      updateCameraShake(dt);
       checkCollisions(raceData.raceTime);
       checkFlyingObjectCollisions();
       checkItemCollection(dt);
       checkSlipstream(dt);
+      checkNearMisses();
       checkLap(prevZ);
       raceData.position = computePosition();
       break;
@@ -286,19 +325,21 @@ function _renderRaceScene() {
 
   setViewHorizon();
 
-  // Apply weather visibility — shorten effective draw distance at night/blizzard
   const visScale = (typeof weatherState !== 'undefined') ? weatherState.visibility : 1.0;
   _weatherVisibility = visScale;
 
   _effectivePlayerX = ePX;
-  projectRoad(pZ, ePX, W, H);
 
+  // Apply camera shake as canvas translation
+  ctx.save();
+  ctx.translate(_cameraShakeX || 0, _cameraShakeY || 0);
+
+  projectRoad(pZ, ePX, W, H);
   renderSkyAndBackground(W, H);
   renderRoad(W, H);
   renderItemOrbs(W, H);
   renderAICars(W, H);
 
-  // Weather overlay (particles, sky tint) — drawn over road but under cockpit
   if (typeof renderWeatherOverlay === 'function') renderWeatherOverlay(W, H);
 
   if (viewMode === VIEW_1ST) {
@@ -306,6 +347,15 @@ function _renderRaceScene() {
   } else {
     renderPlayerCar(W, H);
   }
+
+  ctx.restore();
+
+  // Speed lines and screen flash drawn outside shake transform (screen-space)
+  if (player) {
+    const spFrac = player.speed / ((VEHICLE_DEFS[carConfig.vehicleType] || VEHICLE_DEFS.f1).maxSpeed);
+    renderSpeedLines(W, H, spFrac);
+  }
+  renderScreenFlash(W, H, _loopDt);
 }
 
 // ── Race HUD ──────────────────────────────────────────────────────────────
@@ -351,10 +401,12 @@ function _renderRaceHUD() {
 // ── MAIN LOOP ──────────────────────────────────────────────────────────────
 let lastTs = 0, lastState = '';
 let _weatherVisibility = 1.0;  // read by renderer for draw-distance clipping
+let _loopDt = 0.016;           // current frame dt, read by effects
 
 function loop(ts) {
   const dt = Math.min((ts - lastTs) / 1000, 0.05);
   lastTs   = ts;
+  _loopDt  = dt;
   resize();
   update(dt);
   render();

@@ -618,19 +618,55 @@ function _nosePrev(x, y, w, h) {
 function renderCountdown(W, H, t) {
   const phase = Math.floor(t); if (phase <= 0) return;
   const frac  = t - phase;
+  const isGo  = phase >= 4;
   const text  = phase===1?'3':phase===2?'2':phase===3?'1':'GO!';
-  const color = phase===1?'#ffcc00':phase===2?'#ff8800':phase===3?'#ff2200':'#00ff88';
-  const alpha = phase >= 4 ? Math.max(0, 1-(t-4)*3.5) : Math.min(1, frac*5);
-  const zoom  = 1 + (1-frac)*0.55;
-  ctx.save(); ctx.globalAlpha = alpha;
-  ctx.translate(W/2, H*0.44); ctx.scale(zoom, zoom);
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.beginPath(); ctx.arc(0,0,H*0.12,0,Math.PI*2); ctx.fill();
-  ctx.shadowColor = color; ctx.shadowBlur = _p(22);
-  ctx.fillStyle = color;
-  ctx.font = `bold ${Math.min(H*0.18,W*0.13)}px monospace`;
+  const color = phase===1?'#ffcc00':phase===2?'#ff8800':phase===3?'#ff2200':'#00ee66';
+  const alpha = isGo ? Math.max(0, 1 - (t - 4) * 2.8) : Math.min(1, frac * 6);
+
+  // Numbers 3/2/1: expanding ring impact frame
+  if (!isGo) {
+    const ringR = H * 0.13 * (1 + frac * 0.6);
+    const ringA = Math.max(0, 0.5 - frac * 0.5);
+    ctx.save();
+    ctx.globalAlpha = ringA;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = _p(4);
+    ctx.beginPath(); ctx.arc(W/2, H*0.44, ringR, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Main number / GO! text
+  const zoom = isGo
+    ? 1.8 - Math.min(0.5, (t - 4) * 1.6)   // pop-in: big then shrinks
+    : 1.0 + (1 - frac) * 0.50;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(W/2, H*0.44);
+  ctx.scale(zoom, zoom);
+
+  // Dark circle behind number
+  ctx.fillStyle = isGo ? 'rgba(0,20,0,0.65)' : 'rgba(0,0,0,0.58)';
+  ctx.beginPath(); ctx.arc(0, 0, H*0.13, 0, Math.PI*2); ctx.fill();
+
+  ctx.shadowColor = color; ctx.shadowBlur = isGo ? _p(40) : _p(22);
+  ctx.fillStyle   = color;
+  ctx.font = `bold ${Math.min(H * (isGo ? 0.22 : 0.18), W*0.14)}px monospace`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(text, 0, 0); ctx.restore();
+  ctx.fillText(text, 0, 0);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // GO! green border glow around edges
+  if (isGo && alpha > 0.1) {
+    const gEdge = Math.max(0, alpha * 0.65);
+    ctx.save();
+    ctx.globalAlpha = gEdge;
+    const brd = _p(6);
+    ctx.strokeStyle = '#00ff66'; ctx.lineWidth = brd;
+    ctx.strokeRect(brd/2, brd/2, W - brd, H - brd);
+    ctx.restore();
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -675,11 +711,33 @@ function renderPause(W, H, mx, my, clicked) {
 //  Content: H*0.14 → H*0.64
 //  Buttons: H*0.66 → H*0.78
 // ─────────────────────────────────────────────
+// Helper: draw a 5-point star
+function _drawStar(cx, cy, r, filled, color) {
+  const pts = 5, inner = r * 0.42;
+  ctx.beginPath();
+  for (let i = 0; i < pts * 2; i++) {
+    const angle = (i * Math.PI / pts) - Math.PI / 2;
+    const rad   = i % 2 === 0 ? r : inner;
+    if (i === 0) ctx.moveTo(cx + Math.cos(angle)*rad, cy + Math.sin(angle)*rad);
+    else         ctx.lineTo(cx + Math.cos(angle)*rad, cy + Math.sin(angle)*rad);
+  }
+  ctx.closePath();
+  if (filled) {
+    const g = ctx.createRadialGradient(cx, cy - r*0.2, 0, cx, cy, r);
+    g.addColorStop(0, '#ffee88'); g.addColorStop(0.5, color || '#ffd700'); g.addColorStop(1, '#cc7700');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = Math.max(1, r * 0.06); ctx.stroke();
+  } else {
+    ctx.fillStyle = 'rgba(60,50,20,0.55)'; ctx.fill();
+    ctx.strokeStyle = '#554422'; ctx.lineWidth = Math.max(1, r * 0.06); ctx.stroke();
+  }
+}
+
 function renderFinish(W, H, mx, my, clicked, data) {
   _bg();
 
   // Chequered flag band
-  const flagH = H * 0.14;
+  const flagH = H * 0.13;
   const sqSz  = Math.max(12, Math.floor(W / 28));
   for (let fx = 0; fx < W; fx += sqSz)
     for (let fy = 0; fy < flagH; fy += sqSz) {
@@ -690,25 +748,64 @@ function renderFinish(W, H, mx, my, clicked, data) {
 
   // Position badge
   const posC = ['#ffd700','#c0c0c0','#cd7f32','#aaa'][Math.min(data.position-1,3)];
-  const bR   = Math.min(H*0.09, W*0.06, _p(46));
-  const bCX  = W/2, bCY = flagH + bR + _p(8);
+  const bR   = Math.min(H*0.08, W*0.055, _p(42));
+  const bCX  = W/2, bCY = flagH + bR + _p(6);
   ctx.fillStyle = posC; ctx.beginPath(); ctx.arc(bCX,bCY,bR,0,Math.PI*2); ctx.fill();
   ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=_p(2.5); ctx.beginPath(); ctx.arc(bCX,bCY,bR,0,Math.PI*2); ctx.stroke();
-  ctx.fillStyle='#000'; ctx.font=`bold ${Math.round(bR*0.74)}px monospace`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#000'; ctx.font=`bold ${Math.round(bR*0.72)}px monospace`; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(ordinal(data.position),bCX,bCY);
 
   // Headline
-  const hdY = bCY + bR + _p(10);
-  const hdSz = Math.min(_p(22), W*0.050);
+  const hdY  = bCY + bR + _p(8);
+  const hdSz = Math.min(_p(20), W*0.046);
   ctx.fillStyle='#fff'; ctx.font=`bold ${hdSz}px monospace`; ctx.textAlign='center'; ctx.textBaseline='top';
   ctx.fillText('RACE FINISHED!', W/2, hdY);
 
+  // ── Star rating ─────────────────────────────────────────────────────
+  let stars = data.position <= 1 ? 3 : data.position <= 3 ? 2 : 1;
+  if ((data.takedowns || 0) >= 2) stars = Math.min(3, stars + 1);
+
+  // Animate stars (pop-in with stagger)
+  data.animTime = (data.animTime || 0) + (typeof _loopDt !== 'undefined' ? _loopDt : 0.016);
+  const starY  = hdY + hdSz + _p(14);
+  const starR  = Math.min(_p(28), W * 0.055);
+  const starGap = starR * 2.6;
+  const starCX = W / 2;
+  for (let i = 0; i < 3; i++) {
+    const delay  = i * 0.22;
+    const t      = Math.max(0, data.animTime - delay);
+    const scale  = t < 0.15 ? t / 0.15 * 1.3 : (t < 0.25 ? 1.3 - (t-0.15)/0.10*0.3 : 1.0);
+    const filled = i < stars;
+    const cx     = starCX + (i - 1) * starGap;
+    ctx.save();
+    ctx.translate(cx, starY + starR);
+    ctx.scale(scale, scale);
+    if (filled) {
+      ctx.shadowColor = '#ffcc00'; ctx.shadowBlur = _p(12);
+    }
+    _drawStar(0, 0, starR, filled);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // Stunt summary
+  const stuntsY = starY + starR * 2.4 + _p(4);
+  const stSz = Math.min(_p(11), W * 0.024);
+  ctx.fillStyle = '#aa8844'; ctx.font = `${stSz}px monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const parts = [];
+  if (data.takedowns > 0)  parts.push(`💥 ${data.takedowns} Takedowns`);
+  if (data.nearMisses > 0) parts.push(`✨ ${data.nearMisses} Near Misses`);
+  if (data.driftTime > 0)  parts.push(`🔥 ${data.driftTime}s Drifting`);
+  if (parts.length) ctx.fillText(parts.join('  ·  '), W/2, stuntsY);
+
   // Stats panel
-  const sSz  = Math.min(_p(12), W*0.026);
-  const sLH  = sSz * 1.9;
-  const sPW  = Math.min(W*0.72, _p(290));
-  const sPH  = (data.lapTimes.length+2)*sLH + _p(20);
-  const sPX  = W/2-sPW/2, sPY = hdY+hdSz+_p(8);
+  const sSz  = Math.min(_p(11), W*0.025);
+  const sLH  = sSz * 1.85;
+  const sPW  = Math.min(W*0.70, _p(280));
+  const sPH  = (data.lapTimes.length+2)*sLH + _p(16);
+  const sPX  = W/2 - sPW/2;
+  const sPY  = stuntsY + (parts.length ? stSz + _p(8) : _p(4));
   ctx.fillStyle='rgba(0,0,0,0.55)'; roundRect(ctx,sPX,sPY,sPW,sPH,_p(7),true,false);
   ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1; roundRect(ctx,sPX,sPY,sPW,sPH,_p(7),false,true);
 
@@ -716,13 +813,14 @@ function renderFinish(W, H, mx, my, clicked, data) {
                ...data.lapTimes.map((lt,i)=>[`Lap ${i+1}`,formatTime(lt)])];
   ctx.font=`${sSz}px monospace`;
   stats.forEach(([l,v],ri)=>{
-    const ry=sPY+_p(10)+ri*sLH;
-    ctx.fillStyle='#778'; ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText(l,sPX+_p(12),ry);
-    ctx.fillStyle='#ffcc00'; ctx.textAlign='right'; ctx.fillText(v,sPX+sPW-_p(12),ry);
+    const ry=sPY+_p(8)+ri*sLH;
+    ctx.fillStyle='#778'; ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText(l,sPX+_p(10),ry);
+    ctx.fillStyle='#ffcc00'; ctx.textAlign='right'; ctx.fillText(v,sPX+sPW-_p(10),ry);
   });
 
   // Buttons
-  const fbH = H*0.11, fbW = Math.min(W*0.32,_p(170)), fbY = H*0.66;
+  const fbH = H*0.10, fbW = Math.min(W*0.30,_p(160));
+  const fbY = Math.min(sPY + sPH + _p(10), H * 0.86);
   let action=null;
   if(_btn('▶  PLAY AGAIN', _p(10), fbY, fbW, fbH, mx,my,'#cc2200',fbH*0.36)&&clicked) action='AGAIN';
   if(_btn('⌂  MAIN MENU',  W-fbW-_p(10),fbY,fbW,fbH,mx,my,'#445566',fbH*0.36)&&clicked) action='MENU';

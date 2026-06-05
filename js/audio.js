@@ -279,3 +279,113 @@ function playThunder() {
 function resumeAudio() {
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 }
+
+// ── Tire squeal ─────────────────────────────────────────────────────────
+let _squealLastT = 0;
+function playTireSqueal(intensity) {
+  if (!audioReady) return;
+  const now = audioCtx.currentTime;
+  if (now - _squealLastT < 0.30) return;  // throttle
+  _squealLastT = now;
+  intensity    = clamp(intensity || 0.5, 0.1, 1.0);
+
+  const dur  = 0.35 + intensity * 0.15;
+  const bufSize = Math.floor(audioCtx.sampleRate * dur);
+  const buf  = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) {
+    const env  = Math.pow(1 - i / bufSize, 0.4);
+    data[i]    = (Math.random() * 2 - 1) * env * 0.6;
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 800 - intensity * 500; bp.Q.value = 3;
+  const g = audioCtx.createGain();
+  g.gain.value = 0.40 * intensity;
+  src.connect(bp); bp.connect(g); g.connect(audioCtx.destination); src.start();
+}
+
+// ── Drift audio (held while drifting) ───────────────────────────────────
+let _driftNoise = null, _driftGain = null;
+
+function playDriftAudio(lateralSpeed) {
+  if (!audioReady) return;
+  lateralSpeed = Math.abs(lateralSpeed || 0.5);
+  if (!_driftNoise) {
+    // Create a looping noise node
+    const bufSize = Math.floor(audioCtx.sampleRate * 2);
+    const buf     = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data    = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    _driftNoise          = audioCtx.createBufferSource();
+    _driftNoise.buffer   = buf;
+    _driftNoise.loop     = true;
+    const bp             = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 380; bp.Q.value = 2.5;
+    _driftGain           = audioCtx.createGain();
+    _driftGain.gain.value = 0;
+    _driftNoise.connect(bp); bp.connect(_driftGain); _driftGain.connect(audioCtx.destination);
+    _driftNoise.start();
+  }
+  const targetVol = clamp(lateralSpeed * 0.22, 0, 0.38);
+  _driftGain.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.05);
+}
+
+function stopDriftAudio() {
+  if (_driftGain) _driftGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.08);
+}
+
+// ── Wind rush (scales with speed) ───────────────────────────────────────
+let _windNode = null, _windGain = null;
+
+function updateWindRush(speedFrac) {
+  if (!audioReady) return;
+  if (!_windNode) {
+    const bufSize = Math.floor(audioCtx.sampleRate * 2);
+    const buf     = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data    = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    _windNode          = audioCtx.createBufferSource();
+    _windNode.buffer   = buf;
+    _windNode.loop     = true;
+    const hp           = audioCtx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 1800; hp.Q.value = 0.8;
+    _windGain          = audioCtx.createGain();
+    _windGain.gain.value = 0;
+    _windNode.connect(hp); hp.connect(_windGain); _windGain.connect(audioCtx.destination);
+    _windNode.start();
+  }
+  const vol = speedFrac > 0.65 ? (speedFrac - 0.65) / 0.35 * 0.18 : 0;
+  _windGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.12);
+}
+
+// ── Takedown metallic crunch ─────────────────────────────────────────────
+function playTakedownSound() {
+  if (!audioReady) return;
+  // Low metallic thud — different from playCrash
+  const dur  = 0.30;
+  const bufSize = Math.floor(audioCtx.sampleRate * dur);
+  const buf  = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) {
+    const env   = Math.pow(1 - i / bufSize, 0.35);
+    const metal = Math.sin(2 * Math.PI * 85 * i / audioCtx.sampleRate) * 0.5;
+    data[i]     = ((Math.random() * 2 - 1) * 0.5 + metal) * env;
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 600;
+  const g  = audioCtx.createGain();
+  g.gain.value = 0.75;
+  src.connect(lp); lp.connect(g); g.connect(audioCtx.destination); src.start();
+  // Layered impact pop
+  const osc = audioCtx.createOscillator();
+  const og  = audioCtx.createGain();
+  osc.frequency.value = 80;
+  og.gain.setValueAtTime(0.6, audioCtx.currentTime);
+  og.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+  osc.connect(og); og.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+}
