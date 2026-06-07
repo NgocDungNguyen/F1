@@ -18,6 +18,23 @@ let raceData = {
 };
 let finishData = null;
 
+// ── Multiplayer state ─────────────────────────────────────────────────────
+let multiplayerMode = false;
+let player1         = null;
+let player2         = null;
+let p1CarConfig     = { color: '#e8001c', decal: 'stripes', vehicleType: 'f1', difficulty: 'medium' };
+let p2CarConfig     = { color: '#0033cc', decal: 'solid',   vehicleType: 'f1', difficulty: 'medium' };
+let p1ViewMode      = VIEW_3RD;
+let p2ViewMode      = VIEW_3RD;
+let _projected1     = [];
+let _projected2     = [];
+let p2Lap           = 1;
+let p1Finished      = false;
+let p2Finished      = false;
+// MP vehicle-select cursor (which vehicle is highlighted per player)
+let _mpP1VehicleIdx = 0;
+let _mpP2VehicleIdx = 0;
+
 let mouseX = 0, mouseY = 0;
 let clickedThisFrame = false;
 
@@ -108,6 +125,45 @@ function startRace() {
   scheduleCountdownBeeps();
 }
 
+// ── Start multiplayer race ─────────────────────────────────────────────────
+function startMultiplayerRace() {
+  multiplayerMode = true;
+  buildTrack(selectedTrack);
+  // Init both players
+  player1 = createPlayer(); player1.z = 10;
+  player2 = createPlayer(); player2.z = 4;
+  player  = player1;  // keep global pointing at P1 as default
+  carConfig = p1CarConfig;
+  // Init AI using P1 difficulty
+  const savedCC = carConfig;
+  carConfig = { ...p1CarConfig };
+  initAI();
+  carConfig = savedCC;
+  initWeather();
+  lastCrashTime = -5;
+  raceData = { lap: 1, raceTime: 0, lapStartTime: 0, lapTimes: [], position: 1, countdownT: 0 };
+  p2Lap = 1;
+  p1Finished = false;
+  p2Finished = false;
+  p1ViewMode = VIEW_3RD;
+  p2ViewMode = VIEW_3RD;
+  STATE = 'COUNTDOWN';
+  if (!audioCtx) initAudio();
+  scheduleCountdownBeeps();
+}
+
+// ── Lap check for multiplayer (does not auto-set STATE = FINISH) ────────────
+function _checkLapMP(prevZ, who) {
+  const curZ = player.z;
+  if (prevZ > TRACK_SEGMENTS * 0.9 && curZ < TRACK_SEGMENTS * 0.1) {
+    raceData.lap++;
+    if (typeof showPopup === 'function')
+      showPopup(`LAP ${raceData.lap}`, '#ffcc00', 1.2);
+    if (who === 'p1' && raceData.lap > TOTAL_LAPS) p1Finished = true;
+    if (who === 'p2' && raceData.lap > TOTAL_LAPS) p2Finished = true;
+  }
+}
+
 // ── Item collection ────────────────────────────────────────────────────────
 function checkItemCollection() {
   if (!player || !segments) return;
@@ -124,9 +180,10 @@ function _applyItem(id) {
   const veh = VEHICLE_DEFS[carConfig.vehicleType] || VEHICLE_DEFS.f1;
   switch (id) {
     case 'nitro':
-      player.boostTimer    = veh.boostDuration;
-      player.boostCooldown = 0;
-      player.boosting      = true;
+      player.nitroBar = Math.min(1, player.nitroBar + 0.60);
+      if (!player.boosting && player.nitroBar > 0.01) {
+        player.nitroLevel = 1; player.boosting = true;
+      }
       playBoostSound();
       break;
     case 'shield':
@@ -143,11 +200,11 @@ function _applyItem(id) {
       player.coolTimer = ITEM_DEFS.cool.duration;
       break;
     case 'dragon':
-      player.dragonTimer   = ITEM_DEFS.dragon.duration;
-      player.shield        = true;
-      player.boostTimer    = ITEM_DEFS.dragon.duration;
-      player.boostCooldown = 0;
-      player.boosting      = true;
+      player.dragonTimer = ITEM_DEFS.dragon.duration;
+      player.shield      = true;
+      player.nitroBar    = 1.0;
+      player.nitroLevel  = 3;
+      player.boosting    = true;
       break;
   }
 }
@@ -212,7 +269,7 @@ function checkNearMisses() {
     const latDiff = Math.abs(player.x - ai.x);
     if (latDiff < hitRadius * 1.8 && latDiff > hitRadius) {
       if (!ai._nearMissedThisFrame) {
-        player.boostCooldown = Math.max(0, player.boostCooldown - 4);
+        player.nitroBar = Math.min(1, player.nitroBar + 0.15);
         player.nearMisses    = (player.nearMisses || 0) + 1;
         if (typeof showPopup === 'function') showPopup('NEAR MISS! ✨', '#ffee44', 1.0);
         ai._nearMissedThisFrame = true;
@@ -239,21 +296,60 @@ function update(dt) {
 
     case 'RACING': {
       raceData.raceTime += dt;
-      const prevZ = player.z;
-      updatePlayer(dt, getInput());
-      updateAI(dt);
-      updateWeather(dt);
-      updateCameraShake(dt);
-      // Skip collision with AI when player is on a separate alt route
-      if (!player || !player.altRoute) {
-        checkCollisions(raceData.raceTime);
-        checkFlyingObjectCollisions();
+
+      if (multiplayerMode) {
+        // ── Player 1 ────────────────────────────────────────────────────────
+        const prevZ1 = player1.z;
+        player = player1; carConfig = p1CarConfig;
+        updatePlayer(dt, getInputP1());
+        checkItemCollection(dt);
+        checkSlipstream(dt);
+        checkNearMisses();
+        if (!player.altRoute) checkCollisions(raceData.raceTime);
+        const savedLap1 = raceData.lap;
+        _checkLapMP(prevZ1, 'p1');
+        raceData.position = computePosition();
+
+        // ── Player 2 ────────────────────────────────────────────────────────
+        const prevZ2 = player2.z;
+        player = player2; carConfig = p2CarConfig;
+        raceData.lap = p2Lap;
+        updatePlayer(dt, getInputP2());
+        checkItemCollection(dt);
+        checkSlipstream(dt);
+        checkNearMisses();
+        if (!player.altRoute) checkCollisions(raceData.raceTime);
+        _checkLapMP(prevZ2, 'p2');
+        p2Lap = raceData.lap;
+        raceData.lap = savedLap1;
+        raceData.p2Position = computePosition();
+
+        // ── Shared ──────────────────────────────────────────────────────────
+        player = player1; carConfig = p1CarConfig;
+        updateAI(dt);
+        updateWeather(dt);
+
+        if (p1Finished && p2Finished) {
+          finishData = { time: raceData.raceTime, lap: TOTAL_LAPS, position: raceData.position, lapTimes: raceData.lapTimes, multiplayer: true, p2Lap };
+          STATE = 'FINISH';
+        }
+      } else {
+        // ── Single player ────────────────────────────────────────────────────
+        const prevZ = player.z;
+        updatePlayer(dt, getInput());
+        updateAI(dt);
+        updateWeather(dt);
+        updateCameraShake(dt);
+        if (!player || !player.altRoute) {
+          checkCollisions(raceData.raceTime);
+          checkFlyingObjectCollisions();
+        }
+        checkItemCollection(dt);
+        checkSlipstream(dt);
+        checkNearMisses();
+        checkLap(prevZ);
+        raceData.position = computePosition();
       }
-      checkItemCollection(dt);
-      checkSlipstream(dt);
-      checkNearMisses();
-      checkLap(prevZ);
-      raceData.position = computePosition();
       break;
     }
   }
@@ -267,8 +363,9 @@ function render() {
 
     case 'MENU': {
       const a = renderMenu(W, H, raceData.raceTime, mouseX, mouseY, clickedThisFrame);
-      if (a === 'PLAY') { if (typeof tryFullscreen === 'function') tryFullscreen(); STATE = 'DIFFICULTY_SELECT'; }
-      if (a === 'HOW')  STATE = 'HOW';
+      if (a === 'PLAY')        { if (typeof tryFullscreen === 'function') tryFullscreen(); STATE = 'DIFFICULTY_SELECT'; }
+      if (a === 'HOW')         STATE = 'HOW';
+      if (a === 'MULTIPLAYER') { if (typeof tryFullscreen === 'function') tryFullscreen(); STATE = 'MP_VEHICLE_P1'; }
       break;
     }
 
@@ -319,19 +416,53 @@ function render() {
       break;
     }
 
+    case 'MP_VEHICLE_P1': {
+      const a = renderMPVehicleSelect(W, H, mouseX, mouseY, clickedThisFrame, 1, p1CarConfig, _mpP1VehicleIdx);
+      if (a && a.vehicleType) { p1CarConfig.vehicleType = a.vehicleType; _mpP1VehicleIdx = a.idx || 0; }
+      if (a === 'NEXT') STATE = 'MP_VEHICLE_P2';
+      if (a === 'BACK') { multiplayerMode = false; STATE = 'MENU'; }
+      break;
+    }
+
+    case 'MP_VEHICLE_P2': {
+      const a = renderMPVehicleSelect(W, H, mouseX, mouseY, clickedThisFrame, 2, p2CarConfig, _mpP2VehicleIdx);
+      if (a && a.vehicleType) { p2CarConfig.vehicleType = a.vehicleType; _mpP2VehicleIdx = a.idx || 0; }
+      if (a === 'NEXT') STATE = 'MP_KEY_CONFIG';
+      if (a === 'BACK') STATE = 'MP_VEHICLE_P1';
+      break;
+    }
+
+    case 'MP_KEY_CONFIG': {
+      const a = renderMPKeyConfig(W, H, mouseX, mouseY, clickedThisFrame);
+      if (a === 'START') { startMultiplayerRace(); }
+      if (a === 'BACK')  STATE = 'MP_VEHICLE_P2';
+      break;
+    }
+
     case 'COUNTDOWN':
     case 'RACING':
     case 'PAUSED': {
-      _renderRaceScene();
-      if (STATE === 'COUNTDOWN') {
-        renderCountdown(W, H, raceData.countdownT);
-      } else if (STATE === 'RACING') {
-        _renderRaceHUD();
-      } else if (STATE === 'PAUSED') {
-        _renderRaceHUD();
-        const pa = renderPause(W, H, mouseX, mouseY, clickedThisFrame);
-        if (pa === 'RESUME') STATE = 'RACING';
-        if (pa === 'MENU')   { STATE = 'MENU'; silenceEngine(); stopRainAmbient(); stopWindAmbient(); }
+      if (multiplayerMode) {
+        _renderSplitScreen();
+        if (STATE === 'COUNTDOWN') {
+          renderCountdown(W, H, raceData.countdownT);
+        } else if (STATE === 'PAUSED') {
+          const pa = renderPause(W, H, mouseX, mouseY, clickedThisFrame);
+          if (pa === 'RESUME') STATE = 'RACING';
+          if (pa === 'MENU')   { STATE = 'MENU'; multiplayerMode = false; silenceEngine(); stopRainAmbient(); stopWindAmbient(); }
+        }
+      } else {
+        _renderRaceScene();
+        if (STATE === 'COUNTDOWN') {
+          renderCountdown(W, H, raceData.countdownT);
+        } else if (STATE === 'RACING') {
+          _renderRaceHUD();
+        } else if (STATE === 'PAUSED') {
+          _renderRaceHUD();
+          const pa = renderPause(W, H, mouseX, mouseY, clickedThisFrame);
+          if (pa === 'RESUME') STATE = 'RACING';
+          if (pa === 'MENU')   { STATE = 'MENU'; silenceEngine(); stopRainAmbient(); stopWindAmbient(); }
+        }
       }
       break;
     }
@@ -423,9 +554,10 @@ function _renderRaceHUD() {
     lap:           raceData.lap,
     raceTime:      raceData.raceTime,
     position:      raceData.position,
-    boostTimer:    player ? player.boostTimer   : 0,
-    boostCooldown: player ? player.boostCooldown: 0,
-    boosting:      player ? player.boosting     : false,
+    nitroBar:       player ? player.nitroBar       : 0,
+    nitroLevel:     player ? player.nitroLevel     : 0,
+    nitroTapWindow: player ? player.nitroTapWindow : false,
+    boosting:       player ? player.boosting       : false,
   });
 
   renderMinimap(W, H, player ? player.z : 0);
@@ -453,6 +585,68 @@ function _renderRaceHUD() {
   ctx.font         = 'bold 12px monospace';
   ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(viewMode === VIEW_1ST ? '🎥 1ST PERSON  [V]' : '🎥 3RD PERSON  [V]', W/2, H*0.695+11);
+  ctx.restore();
+}
+
+// ── Split-screen multiplayer renderer ─────────────────────────────────────
+function _renderSplitScreen() {
+  const halfW  = Math.floor(W / 2);
+  const savedW = W;
+
+  function renderHalf(playerObj, carCfg, vMode, projArr, offsetX) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(offsetX, 0, halfW, H);
+    ctx.clip();
+    if (offsetX > 0) ctx.translate(offsetX, 0);
+
+    // Per-player camera shake
+    const shakeX = playerObj.cameraShakeX || 0;
+    const shakeY = playerObj.cameraShakeY || 0;
+
+    // Swap globals
+    const _sp  = player, _sc = carConfig, _sv = viewMode;
+    const _spr = _projected;
+    const _sShakeX = _cameraShakeX, _sShakeY = _cameraShakeY;
+    player    = playerObj;
+    carConfig = carCfg;
+    viewMode  = vMode;
+    _projected = projArr;
+    _cameraShakeX = shakeX;
+    _cameraShakeY = shakeY;
+    W = halfW;
+
+    _renderRaceScene();
+    if (STATE === 'RACING') _renderRaceHUD();
+
+    // Restore globals
+    player    = _sp;
+    carConfig = _sc;
+    viewMode  = _sv;
+    _projected     = _spr;
+    _cameraShakeX  = _sShakeX;
+    _cameraShakeY  = _sShakeY;
+    W = savedW;
+    ctx.restore();
+  }
+
+  renderHalf(player1, p1CarConfig, p1ViewMode, _projected1, 0);
+  renderHalf(player2, p2CarConfig, p2ViewMode, _projected2, halfW);
+
+  // Centre divider
+  ctx.fillStyle = 'rgba(220,220,220,0.75)';
+  ctx.fillRect(halfW - 1, 0, 2, H);
+
+  // Player labels
+  ctx.save();
+  ctx.font      = 'bold 14px monospace';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(4, 4, 34, 18);
+  ctx.fillRect(halfW * 2 - 38, 4, 34, 18);
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';  ctx.fillText('P1', 8,  6);
+  ctx.textAlign = 'right'; ctx.fillText('P2', halfW * 2 - 8, 6);
   ctx.restore();
 }
 

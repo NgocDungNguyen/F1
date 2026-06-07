@@ -86,12 +86,14 @@ function renderMenu(W, H, _t, mx, my, clicked) {
   // HOW button:   H*0.59  →  H*0.70  (11%)  bottom = H*0.70  ← safe on all phones
   // Total used: 70% of H, safe margin 30%
 
-  const LOGO_CY  = H * 0.18;   // vertical centre of the F1/RACER stack
-  const TAG_Y    = H * 0.32;
-  const PLAY_Y   = H * 0.42;
-  const PLAY_H   = H * 0.13;
-  const HOW_Y    = H * 0.59;
-  const HOW_H    = H * 0.11;
+  const LOGO_CY  = H * 0.16;
+  const TAG_Y    = H * 0.29;
+  const PLAY_Y   = H * 0.38;
+  const PLAY_H   = H * 0.11;
+  const MP_Y     = H * 0.52;
+  const MP_H     = H * 0.10;
+  const HOW_Y    = H * 0.65;
+  const HOW_H    = H * 0.09;
 
   // Glow halo behind logo
   const pulse = 0.65 + 0.35 * Math.sin(_mT * 1.8);
@@ -136,8 +138,9 @@ function renderMenu(W, H, _t, mx, my, clicked) {
   const bX = W / 2 - bW / 2;
 
   let action = null;
-  if (_btn('▶   PLAY', bX, PLAY_Y, bW, PLAY_H, mx, my, '#cc2200', PLAY_H * 0.36) && clicked) action = 'PLAY';
-  if (_btn('?   HOW TO PLAY', bX, HOW_Y,  bW, HOW_H, mx, my, '#334466', HOW_H * 0.38) && clicked) action = 'HOW';
+  if (_btn('▶   PLAY',        bX, PLAY_Y, bW, PLAY_H, mx, my, '#cc2200', PLAY_H * 0.36) && clicked) action = 'PLAY';
+  if (_btn('⚡  MULTIPLAYER',  bX, MP_Y,   bW, MP_H,   mx, my, '#005599', MP_H   * 0.36) && clicked) action = 'MULTIPLAYER';
+  if (_btn('?   HOW TO PLAY', bX, HOW_Y,  bW, HOW_H,  mx, my, '#334466', HOW_H  * 0.38) && clicked) action = 'HOW';
 
   // Version (below visible safe zone — decorative only, OK if clipped)
   ctx.fillStyle    = '#1e2030';
@@ -823,5 +826,150 @@ function renderFinish(W, H, mx, my, clicked, data) {
   let action=null;
   if(_btn('▶  PLAY AGAIN', _p(10), fbY, fbW, fbH, mx,my,'#cc2200',fbH*0.36)&&clicked) action='AGAIN';
   if(_btn('⌂  MAIN MENU',  W-fbW-_p(10),fbY,fbW,fbH,mx,my,'#445566',fbH*0.36)&&clicked) action='MENU';
+  return action;
+}
+
+// ─────────────────────────────────────────────
+//  MULTIPLAYER VEHICLE SELECT  (shared for P1 and P2)
+// ─────────────────────────────────────────────
+function renderMPVehicleSelect(W, H, mx, my, clicked, playerNum, carCfg, _selIdx) {
+  _bg();
+  _hdr(`PLAYER ${playerNum}  —  CHOOSE VEHICLE`, H * 0.07);
+
+  const BTN_H  = Math.max(_p(36), H * 0.09);
+  const gap    = _p(8);
+  const cCols  = 2, cRows = 2;
+  const AREA_Y = H * 0.14;
+  const AREA_H = H - AREA_Y - BTN_H - gap * 3;
+  const BTN_Y  = AREA_Y + AREA_H + gap * 2;
+  const cW     = (W - gap * (cCols + 1)) / cCols;
+  const cH     = (AREA_H - gap * (cRows + 1)) / cRows;
+  const types  = ['f1', 'f1v2', 'nascar', 'moto'];
+  // Player colors for highlight
+  const hlCol  = playerNum === 1 ? '#cc2200' : '#0055cc';
+  let action   = null;
+
+  types.forEach((type, i) => {
+    const col = i % cCols;
+    const row = Math.floor(i / cCols);
+    const cx  = gap + col * (cW + gap);
+    const cy  = AREA_Y + gap + row * (cH + gap);
+    const veh = VEHICLE_DEFS[type];
+    const sel = type === carCfg.vehicleType;
+    const hov = hitTest(mx, my, cx, cy, cW, cH);
+
+    ctx.fillStyle   = sel ? `rgba(${playerNum===1?'140,20,0':'0,50,140'},0.22)` : 'rgba(10,12,20,0.92)';
+    roundRect(ctx, cx, cy, cW, cH, _p(7), true, false);
+    ctx.strokeStyle = sel ? hlCol : (hov ? '#333' : '#181c28');
+    ctx.lineWidth   = sel ? 2.5 : 1;
+    roundRect(ctx, cx, cy, cW, cH, _p(7), false, true);
+
+    const prevH = cH * 0.50;
+    const sprSz = Math.min(cW * 0.38, prevH * 0.82, _p(58));
+    ctx.save();
+    ctx.beginPath(); ctx.rect(cx + 2, cy + 2, cW - 4, prevH - 2); ctx.clip();
+    _drawVehiclePreview(type, cx + cW / 2, cy + prevH * 0.54, sprSz, carCfg.color || '#e8001c', 'stripes');
+    ctx.restore();
+
+    const nameSz = Math.min(_p(12), cW * 0.085);
+    ctx.fillStyle = sel ? hlCol : '#eee';
+    ctx.font = `bold ${nameSz}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(veh.name, cx + cW / 2, cy + prevH + _p(4));
+
+    if (sel) {
+      ctx.fillStyle = hlCol; ctx.font = `bold ${_p(11)}px monospace`;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillText('✓', cx + cW - _p(7), cy + _p(6));
+    }
+
+    if (hov && clicked) action = { vehicleType: type, idx: i };
+  });
+
+  const bW = Math.min(W * 0.30, _p(160));
+  if (_btn('◀  BACK', gap, BTN_Y, bW, BTN_H, mx, my, '#445566', BTN_H * 0.36) && clicked && !action) action = 'BACK';
+  if (_btn('NEXT  ▶', W - bW - gap, BTN_Y, bW, BTN_H, mx, my, hlCol, BTN_H * 0.38) && clicked && !action) action = 'NEXT';
+  return action;
+}
+
+// ─────────────────────────────────────────────
+//  MULTIPLAYER KEY CONFIGURATION
+// ─────────────────────────────────────────────
+function renderMPKeyConfig(W, H, mx, my, clicked) {
+  _bg();
+  _hdr('CONFIGURE CONTROLS', H * 0.07);
+
+  const gap   = _p(12);
+  const colW  = (W - gap * 3) / 2;
+  const col1X = gap;
+  const col2X = gap * 2 + colW;
+  const startY = H * 0.16;
+  const rowH  = Math.max(_p(36), H * 0.09);
+  const rowGap= _p(8);
+
+  function drawPlayerColumn(pNum, cfg, fixLeft, fixRight, fixGas, fixBrake, ox) {
+    const hlCol = pNum === 1 ? '#cc2200' : '#0055cc';
+    // Player label
+    ctx.fillStyle = hlCol; ctx.font = `bold ${_p(14)}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`PLAYER ${pNum}`, ox + colW / 2, startY - _p(10));
+
+    const rows = [
+      { label: 'MOVE LEFT',  key: fixLeft,      fixed: true  },
+      { label: 'MOVE RIGHT', key: fixRight,     fixed: true  },
+      { label: 'GAS',        key: fixGas,       fixed: true  },
+      { label: 'BRAKE (↓)',  key: fixBrake,     fixed: true  },
+      { label: 'NITRO',      action: 'nitro',   fixed: false },
+      { label: 'DRIFT BRAKE',action: 'hardBrake',fixed: false },
+      { label: 'CHANGE VIEW',action: 'view',    fixed: false },
+    ];
+
+    rows.forEach((row, i) => {
+      const ry = startY + i * (rowH + rowGap);
+      const isListening = typeof _listeningFor !== 'undefined' && _listeningFor &&
+                          _listeningFor.player === pNum && _listeningFor.action === row.action;
+
+      // Row bg
+      const hov = !row.fixed && hitTest(mx, my, ox, ry, colW, rowH);
+      ctx.fillStyle = isListening ? 'rgba(255,255,100,0.15)' : (hov ? 'rgba(80,80,120,0.3)' : 'rgba(10,12,20,0.7)');
+      roundRect(ctx, ox, ry, colW, rowH, _p(5), true, false);
+      ctx.strokeStyle = isListening ? '#ffee00' : (row.fixed ? '#222' : '#334');
+      ctx.lineWidth = isListening ? 2 : 1;
+      roundRect(ctx, ox, ry, colW, rowH, _p(5), false, true);
+
+      const sz = Math.min(_p(10), rowH * 0.32);
+      ctx.font = `${sz}px monospace`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = row.fixed ? '#556' : '#aac';
+      ctx.fillText(row.label, ox + _p(8), ry + rowH / 2);
+
+      const keyStr = isListening ? '[ PRESS A KEY ]' : (row.fixed ? row.key : cfg[row.action] || '?');
+      ctx.textAlign = 'right';
+      ctx.fillStyle = isListening ? '#ffee00' : (row.fixed ? '#445' : '#fff');
+      ctx.font = `bold ${sz}px monospace`;
+      ctx.fillText(keyStr.replace('Key','').replace('Arrow','').replace('Numpad','N'), ox + colW - _p(8), ry + rowH / 2);
+
+      if (!row.fixed && hov && clicked && !isListening) {
+        _listeningFor = { player: pNum, action: row.action };
+      }
+    });
+  }
+
+  drawPlayerColumn(1, p1KeyConfig, 'KeyA',      'KeyD',       'KeyW',    'KeyS',      col1X);
+  drawPlayerColumn(2, p2KeyConfig, 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', col2X);
+
+  // Vertical divider
+  ctx.fillStyle = 'rgba(60,60,80,0.6)';
+  ctx.fillRect(W / 2 - 1, startY, 2, 7 * (rowH + _p(8)));
+
+  // Start button
+  const startBtnH = Math.max(_p(40), H * 0.10);
+  const startBtnY = H - startBtnH - gap;
+  const startBtnW = Math.min(W * 0.42, _p(220));
+  const backBtnW  = Math.min(W * 0.28, _p(148));
+
+  let action = null;
+  if (_btn('◀  BACK', gap, startBtnY, backBtnW, startBtnH, mx, my, '#445566', startBtnH * 0.36) && clicked) action = 'BACK';
+  if (_btn('▶  START RACE', W / 2 - startBtnW / 2, startBtnY, startBtnW, startBtnH, mx, my, '#005599', startBtnH * 0.40) && clicked) action = 'START';
   return action;
 }

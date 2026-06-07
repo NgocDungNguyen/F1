@@ -5,8 +5,9 @@
 let aiCars = [];
 
 // 6 distinct colors for up to 6 AI cars
-const AI_COLORS = ['#0033cc', '#ffcc00', '#00aa44', '#cc0044', '#aa44ff', '#ff8800'];
-const AI_DECALS = ['solid', 'solid', 'solid', 'solid', 'solid', 'solid'];
+const AI_COLORS        = ['#0033cc', '#ffcc00', '#00aa44', '#cc0044', '#aa44ff', '#ff8800'];
+const AI_DECALS        = ['solid', 'solid', 'solid', 'solid', 'solid', 'solid'];
+const AI_VEHICLE_TYPES = ['f1', 'f1v2', 'nascar', 'moto'];
 
 // Starting gaps for up to 6 AI (segments ahead of player start position)
 const AI_GAPS = [14, 30, 52, 78, 108, 145];
@@ -24,8 +25,9 @@ function initAI() {
       z:         (startZ + AI_GAPS[i % AI_GAPS.length]) % TRACK_SEGMENTS,
       x:         (i % 2 === 0 ? -0.28 : 0.28),
       speed:     AI_MAX_SPEED * (0.78 + (i % 3) * 0.04),
-      color:     AI_COLORS[i % AI_COLORS.length],
-      decal:     AI_DECALS[i % AI_DECALS.length],
+      color:       AI_COLORS[i % AI_COLORS.length],
+      decal:       AI_DECALS[i % AI_DECALS.length],
+      vehicleType: AI_VEHICLE_TYPES[Math.floor(Math.random() * AI_VEHICLE_TYPES.length)],
       laps:      0,
       crashing:  false,
       crashTimer: 0,

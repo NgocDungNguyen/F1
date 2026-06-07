@@ -17,43 +17,47 @@ function _applyOffRoad(veh, dt) {
   }
 }
 
-function initPlayer() {
-  player = {
+function createPlayer() {
+  return {
     z:              8,
     x:              0,
     speed:          0,
     steeringAngle:  0,
-    boosting:       false,
-    boostTimer:     0,
-    boostCooldown:  0,
+    boosting:        false,
+    nitroBar:        0.0,
+    nitroLevel:      0,
+    nitroTapWindow:  false,
+    _nitroPrevNitro: false,
     crashTimer:     0,
     offRoadTimer:   0,
     laps:           0,
-    ersCharge:      1.0,   // LMP1 ERS charge 0–1
-    fuel:           1.0,   // NASCAR fuel 0–1 (cosmetic)
-    // ── Item effect timers ────────────────────
-    shield:         false, // golden shield — next collision absorbed
-    gripTimer:      0,     // green grip — ignore mud/dirt friction
-    turboTimer:     0,     // orange turbo — +25% maxSpeed cap
-    coolTimer:      0,     // cyan cool — heat immunity
-    dragonTimer:    0,     // red dragon — super speed + invulnerability
-    // ── Track-specific state ──────────────────
-    heat:           0,     // Sahara overheat 0–1
-    slipstreaming:  false, // Monza draft active
-    onShortcut:     false, // on left fork strip (shortcut path)
-    // ── Drift system ─────────────────────────
-    prevX:          0,     // last frame x position (for lateral velocity)
-    lateralSpeed:   0,     // world units/sec lateral movement
+    ersCharge:      1.0,
+    fuel:           1.0,
+    shield:         false,
+    gripTimer:      0,
+    turboTimer:     0,
+    coolTimer:      0,
+    dragonTimer:    0,
+    heat:           0,
+    slipstreaming:  false,
+    onShortcut:     false,
+    prevX:          0,
+    lateralSpeed:   0,
     isDrifting:     false,
-    driftTimer:     0,     // continuous seconds spent drifting
-    driftMeter:     0,     // 0–1, fills from drifting → awards nitro
-    // ── Stunt tracking ───────────────────────
+    driftTimer:     0,
+    driftMeter:     0,
     takedowns:      0,
     nearMisses:     0,
     totalDriftTime: 0,
-    // ── Alt route system ─────────────────────
-    altRoute:       null,   // null or { idx, altZ }
+    altRoute:       null,
+    // Per-player camera shake (used in split-screen)
+    cameraShakeX:   0,
+    cameraShakeY:   0,
   };
+}
+
+function initPlayer() {
+  player = createPlayer();
 }
 
 function updatePlayer(dt, inp) {
@@ -77,22 +81,41 @@ function updatePlayer(dt, inp) {
     seg = segments[Math.floor(player.z) % TRACK_SEGMENTS];
   }
 
-  // ── Boost logic ────────────────────────────────────────────────────────
-  if (player.boostTimer > 0) {
-    player.boostTimer -= dt;
-    player.boosting    = true;
-    if (player.boostTimer <= 0) {
-      player.boostTimer = 0;
-      player.boosting   = false;
+  // ── Nitro fill ─────────────────────────────────────────────────────────
+  if (!player.boosting && player.speed > veh.maxSpeed * 0.15) {
+    if (player.isDrifting) {
+      const driftBonus = Math.abs(player.lateralSpeed) > 0.60 ? 1.35 : 1.0;
+      player.nitroBar = Math.min(1, player.nitroBar + NITRO_FILL_DRIFT * driftBonus * dt);
+    } else if (player.offRoadTimer === 0) {
+      player.nitroBar = Math.min(1, player.nitroBar + NITRO_FILL_ROAD * dt);
     }
   }
-  if (player.boostCooldown > 0) player.boostCooldown -= dt;
 
-  if (inp.boost && !player.boosting && player.boostCooldown <= 0) {
-    player.boostTimer    = veh.boostDuration;
-    player.boostCooldown = veh.boostCooldown;
-    player.boosting      = true;
-    playBoostSound();
+  // ── Nitro drain ────────────────────────────────────────────────────────
+  if (player.boosting && player.nitroLevel > 0) {
+    const drainRates = [0, NITRO_DRAIN_L1, NITRO_DRAIN_L2, NITRO_DRAIN_L3];
+    player.nitroBar = Math.max(0, player.nitroBar - drainRates[player.nitroLevel] * dt);
+    if (player.nitroBar <= 0) {
+      player.boosting = false; player.nitroLevel = 0; player.nitroTapWindow = false;
+    }
+    const bar = player.nitroBar;
+    player.nitroTapWindow =
+      (player.nitroLevel === 1 && bar >= NITRO_SWEET1_LO && bar <= NITRO_SWEET1_HI) ||
+      (player.nitroLevel === 2 && bar >= NITRO_SWEET2_LO && bar <= NITRO_SWEET2_HI);
+  } else {
+    player.nitroTapWindow = false;
+  }
+
+  // ── Nitro activation (edge-triggered, works for Shift on desktop + boost button on mobile) ──
+  const nitroEdge = inp.nitro && !player._nitroPrevNitro;
+  player._nitroPrevNitro = inp.nitro;
+  if (nitroEdge) {
+    if (!player.boosting && player.nitroBar > 0.01) {
+      player.nitroLevel = 1; player.boosting = true; playBoostSound();
+    } else if (player.boosting && player.nitroTapWindow) {
+      if (player.nitroLevel === 1) { player.nitroLevel = 2; playBoostSound(); }
+      else if (player.nitroLevel === 2) { player.nitroLevel = 3; playBoostSound(); }
+    }
   }
 
   // ── Crash state: slow player, no steering ──────────────────────────────
@@ -104,13 +127,14 @@ function updatePlayer(dt, inp) {
   }
 
   // ── Speed cap: turbo and dragon raise it ───────────────────────────────
-  let maxSpd = player.boosting ? veh.boostSpeed : veh.maxSpeed;
+  const nitroMults = [1, 1, NITRO_SPEED_L2_MULT, NITRO_SPEED_L3_MULT];
+  let maxSpd = player.boosting ? veh.boostSpeed * (nitroMults[player.nitroLevel] || 1) : veh.maxSpeed;
   if (player.turboTimer  > 0) maxSpd *= 1.25;
   if (player.dragonTimer > 0) maxSpd  = veh.boostSpeed * 1.15;
 
   if (inp.gas) {
     player.speed = Math.min(player.speed + veh.accel * dt, maxSpd);
-  } else if (inp.brake) {
+  } else if (inp.hardBrake || inp.brake) {
     player.speed = Math.max(player.speed - veh.brake * dt, 0);
   } else {
     player.speed = Math.max(player.speed - veh.coast * dt, 0);
@@ -125,7 +149,7 @@ function updatePlayer(dt, inp) {
 
   // ── Steering (speed-dependent authority, reduced by grip) ──────────────
   const speedFrac      = player.speed / veh.maxSpeed;
-  const brakeTurnBonus = (inp.brake && (inp.left || inp.right)) ? 0.28 : 0;
+  const brakeTurnBonus = ((inp.brake || inp.hardBrake) && (inp.left || inp.right)) ? 0.28 : 0;
   const steerFactor    = Math.max(veh.minSteer, 1 - speedFrac * 0.44 + brakeTurnBonus);
   const steerAmount    = veh.steerSpeed * dt * steerFactor * effectiveGrip;
 
@@ -168,7 +192,7 @@ function updatePlayer(dt, inp) {
       // Drift just ended — award nitro reduction proportional to meter
       if (player.driftMeter > 0.18) {
         const reward = player.driftMeter;
-        player.boostCooldown = Math.max(0, player.boostCooldown - reward * 12);
+        player.nitroBar = Math.min(1, player.nitroBar + reward * 0.50);
         if (typeof showPopup === 'function') {
           showPopup(
             player.driftTimer > 1.5 ? 'PERFECT DRIFT! 🔥' : 'DRIFT!',
@@ -313,6 +337,9 @@ function updatePlayer(dt, inp) {
   }
 
   // ── Audio ──────────────────────────────────────────────────────────────
-  updateEngineSound(player.speed / (player.boosting ? veh.boostSpeed : veh.maxSpeed));
+  const activeTop = player.boosting
+    ? veh.boostSpeed * (nitroMults[player.nitroLevel] || 1)
+    : veh.maxSpeed;
+  updateEngineSound(player.speed / activeTop);
   if (typeof updateWindRush === 'function') updateWindRush(speedFrac);
 }

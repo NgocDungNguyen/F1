@@ -31,6 +31,19 @@ const CRASH_SPEED_MULT   = 0.42;
 const ROAD_EDGE          = 1.0;
 const GRASS_EDGE         = 1.55;
 
+// ── Nitro system (Asphalt-style 3-tier) ────────────────────────────────────
+const NITRO_FILL_ROAD     = 0.08;   // bar/s on asphalt
+const NITRO_FILL_DRIFT    = 0.30;   // bar/s while drifting
+const NITRO_DRAIN_L1      = 0.22;   // bar/s level 1 blue
+const NITRO_DRAIN_L2      = 0.28;   // bar/s level 2 red
+const NITRO_DRAIN_L3      = 0.38;   // bar/s level 3 purple
+const NITRO_SPEED_L2_MULT = 1.25;   // boostSpeed × 1.25
+const NITRO_SPEED_L3_MULT = 1.55;   // boostSpeed × 1.55
+const NITRO_SWEET1_HI     = 0.65;   // first tap window: blue→red
+const NITRO_SWEET1_LO     = 0.48;
+const NITRO_SWEET2_HI     = 0.42;   // second tap window: red→purple
+const NITRO_SWEET2_LO     = 0.25;
+
 // AI
 const AI_COUNT       = 3;   // legacy; active count comes from difficulty
 const AI_MAX_SPEED   = 11.5;
@@ -62,7 +75,7 @@ const VEHICLE_DEFS = {
     desc: 'Balanced · Responsive',
     maxSpeed: 14, accel: 4.5, brake: 9, coast: 1.8,
     steerSpeed: 2.2, minSteer: 0.38,
-    boostSpeed: 22, boostDuration: 3.5, boostCooldown: 28,
+    boostSpeed: 22,
     collisionRadius: 0.18,
     playerWidth: 0.082,
     cornerDrag: 0.18,
@@ -75,7 +88,7 @@ const VEHICLE_DEFS = {
     desc: 'Prototype · Covered Wheels',
     maxSpeed: 15, accel: 5.0, brake: 10, coast: 1.5,
     steerSpeed: 2.5, minSteer: 0.38,
-    boostSpeed: 23, boostDuration: 4.0, boostCooldown: 24,
+    boostSpeed: 23,
     collisionRadius: 0.19,
     playerWidth: 0.095,
     cornerDrag: 0.14,
@@ -87,7 +100,7 @@ const VEHICLE_DEFS = {
     desc: 'Top Speed · Oval Power',
     maxSpeed: 16, accel: 3.5, brake: 7.5, coast: 1.2,
     steerSpeed: 1.6, minSteer: 0.28,
-    boostSpeed: 24, boostDuration: 4.0, boostCooldown: 32,
+    boostSpeed: 24,
     collisionRadius: 0.22,
     playerWidth: 0.100,
     cornerDrag: 0.22,
@@ -99,7 +112,7 @@ const VEHICLE_DEFS = {
     desc: 'Fastest · Narrow',
     maxSpeed: 17, accel: 5.8, brake: 10, coast: 2.2,
     steerSpeed: 2.8, minSteer: 0.42,
-    boostSpeed: 24, boostDuration: 3.0, boostCooldown: 22,
+    boostSpeed: 24,
     collisionRadius: 0.14,
     playerWidth: 0.060,
     cornerDrag: 0.12,

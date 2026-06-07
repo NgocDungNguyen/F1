@@ -9,24 +9,28 @@ let horizonFrac   = HORIZON_FRAC;
 function projectRoad(playerZ, effectivePlayerX, W, H) {
   if (!segments || segments.length === 0) return;
 
-  const startIdx = Math.floor(playerZ) % TRACK_SEGMENTS;
-  const segFrac  = playerZ - Math.floor(playerZ);
-  const roadBase = H * (1 - horizonFrac);
-  // Visibility scale: weather/night can shorten draw distance
-  const visScale = (typeof _weatherVisibility !== 'undefined') ? _weatherVisibility : 1.0;
-  let drawDist = Math.round(DRAW_DISTANCE * Math.max(0.35, visScale));
-  // Fog zone (Monaco tunnel / Mountain Pass fog / Sahara sandstorm pocket) collapses visibility
+  // Use actual segment count so alt-route arrays (shorter than TRACK_SEGMENTS) don't overflow
+  const trackLen  = segments.length;
+  const startIdx  = Math.floor(playerZ) % trackLen;
+  const segFrac   = playerZ - Math.floor(playerZ);
+  const roadBase  = H * (1 - horizonFrac);
+  const visScale  = (typeof _weatherVisibility !== 'undefined') ? _weatherVisibility : 1.0;
+  let   drawDist  = Math.round(DRAW_DISTANCE * Math.max(0.35, visScale));
+  // Fog zone collapses draw distance
   const startSeg = segments[startIdx];
   if (startSeg && startSeg.fogZone) drawDist = Math.min(drawDist, 35);
+  // Never try to project more segments than the array actually contains
+  drawDist = Math.min(drawDist, trackLen - 1);
 
   _projected = [];
   let curveX = 0;
 
   for (let n = 1; n <= drawDist + 1; n++) {
-    const segIdx = (startIdx + n - 1) % TRACK_SEGMENTS;
+    const segIdx = (startIdx + n - 1) % trackLen;
     const seg    = segments[segIdx];
-    const z      = n - segFrac;
-    const scale  = CAMERA_H / z;
+    if (!seg) break;
+    const z       = n - segFrac;
+    const scale   = CAMERA_H / z;
     const screenY = H * horizonFrac + scale * roadBase;
     const centerX = W / 2 + (curveX - effectivePlayerX) * W * ROAD_HALF_NORM;
     const rHalf   = scale * W * ROAD_HALF_NORM;

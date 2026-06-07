@@ -38,7 +38,7 @@ function checkCollisions(raceTime) {
 
     if (isTakedown) {
       // Player earns nitro, no crash
-      player.boostCooldown = Math.max(0, player.boostCooldown - 10);
+      player.nitroBar = Math.min(1, player.nitroBar + 0.40);
       player.takedowns     = (player.takedowns || 0) + 1;
       // AI flies off track dramatically
       ai.x      += Math.sign(ai.x === 0 ? 1 : ai.x) * 1.2;
