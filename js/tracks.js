@@ -29,16 +29,16 @@ const TRACK_DEFS = [
     sections: [
       { len: 50,  curve:  0.0 },                                     // harbour straight
       { len: 20,  curve:  3.8 },                                     // Ste Devote right
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 1 entry — casino
-      { len: 50,  curve:  0.0, forkSection: true, item: 'nitro' },  // FORK 1 body
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 1 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir:  1 },   // FORK 1 entry — casino
+      { len: 50,  curve:  0.0, forkSection: true, item: 'nitro', branchDir:  1 },  // FORK 1 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir:  1 },   // FORK 1 exit
       { len: 18,  curve: -2.2 },                                     // Massenet left
       { len: 22,  curve:  4.2 },                                     // Casino square right
       { len: 20,  curve:  0.0, oilSlick: true },                    // oil patch — Casino exit
       { len: 18,  curve: -3.4 },                                     // Mirabeau left
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 2 entry — loews
-      { len: 50,  curve:  0.0, forkSection: true },                 // FORK 2 body
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 2 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir: -1 },   // FORK 2 entry — loews
+      { len: 50,  curve:  0.0, forkSection: true, branchDir: -1 },  // FORK 2 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir: -1 },   // FORK 2 exit
       { len: 25,  curve:  4.0 },                                     // Grand Hotel hairpin
       { len: 30,  curve:  0.0 },                                     // tunnel entrance
       { len: 40,  curve:  0.8, fogZone: true, roadWidthMult: 0.82 }, // TUNNEL — narrow + dark
@@ -48,7 +48,10 @@ const TRACK_DEFS = [
       { len: 55,  curve:  0.0 },                                     // Tabac straight
       { len: 25,  curve: -2.8 },                                     // Swimming Pool L
       { len: 25,  curve:  2.8 },                                     // Swimming Pool R
-      { len: 60,  curve:  0.0 },                                     // final straight
+      { len: 15,  curve:  0.0 },                                     // approach
+      { len: 16,  curve: -4.0 },                                     // 180° LEFT HAIRPIN — U-turn
+      { len: 13,  curve:  0.0 },                                     // brief flat
+      { len: 16,  curve:  4.0 },                                     // 180° RIGHT mirror
       { len: 25,  curve: -3.0 },                                     // Rascasse
       { len: 30,  curve:  0.0 },                                     // finish run
     ]
@@ -65,20 +68,24 @@ const TRACK_DEFS = [
     hillColor: '#2a5a2a',
     bgObjects: 'forest',
     sections: [
-      { len: 150, curve:  0.0, slipstreamZone: true },              // main straight — slipstream
+      { len: 55,  curve:  0.0, slipstreamZone: true },              // opening blast
+      { len: 10,  curve:  2.8, slipstreamZone: true },              // banking entry
+      { len: 30,  curve:  2.8, slipstreamZone: true },              // 360° BANKED OVAL sweep
+      { len: 10,  curve:  2.8, slipstreamZone: true },              // banking exit
+      { len: 45,  curve:  0.0, slipstreamZone: true },              // closing blast
       { len: 30,  curve:  3.0 },                                     // Prima Variante R
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 1 entry — chicane bypass
-      { len: 55,  curve:  0.0, forkSection: true, item: 'turbo' }, // FORK 1 body
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 1 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir:  1 },   // FORK 1 entry — chicane bypass
+      { len: 55,  curve:  0.0, forkSection: true, item: 'turbo', branchDir:  1 }, // FORK 1 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir:  1 },   // FORK 1 exit
       { len: 30,  curve: -3.0 },                                     // Prima Variante L
       { len: 100, curve:  0.0, slipstreamZone: true },              // back straight — slipstream
       { len: 45,  curve:  1.6 },                                     // Seconda Variante R
       { len: 45,  curve: -1.6 },                                     // Seconda Variante L
       { len: 80,  curve:  0.0 },                                     // high-speed straight
       { len: 50,  curve:  1.8 },                                     // Lesmo 1
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 2 entry — Lesmo bypass
-      { len: 50,  curve:  0.0, forkSection: true },                 // FORK 2 body
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 2 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir: -1 },   // FORK 2 entry — Lesmo bypass
+      { len: 50,  curve:  0.0, forkSection: true, branchDir: -1 },  // FORK 2 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir: -1 },   // FORK 2 exit
       { len: 50,  curve:  1.8 },                                     // Lesmo 2
       { len: 80,  curve:  0.0 },                                     // Serraglio straight
       { len: 40,  curve: -2.0 },                                     // Ascari L
@@ -99,29 +106,31 @@ const TRACK_DEFS = [
     hillColor: '#4a3a2a',
     bgObjects: 'mountains',
     sections: [
-      { len: 80,  curve:  0.0 },                                     // summit straight
+      { len: 80,  curve:  0.0, rockHazard: 'right' },               // summit straight — rocks right
       { len: 25,  curve:  4.5 },                                     // cliff hairpin (sharpest)
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 1 entry — cliff bypass
-      { len: 55,  curve:  0.0, forkSection: true, item: 'shield' }, // FORK 1 body
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 1 exit
-      { len: 30,  curve:  0.0, fogZone: true },                     // FOG PATCH 1
-      { len: 28,  curve: -3.6, rockHazard: 'right' },               // hidden fog hairpin
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 2 entry — valley bypass
-      { len: 55,  curve:  0.0, forkSection: true },                 // FORK 2 body
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 2 exit
-      { len: 30,  curve:  0.0, fogZone: true },                     // FOG PATCH 2
-      { len: 40,  curve:  0.0 },                                     // valley floor straight
-      { len: 30,  curve:  2.8 },                                     // sweeping right
-      { len: 40,  curve:  0.0 },                                     // mid-mountain straight
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir:  1 },   // FORK 1 entry — cliff bypass
+      { len: 55,  curve:  0.0, forkSection: true, item: 'shield', branchDir:  1 }, // FORK 1 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir:  1 },   // FORK 1 exit
+      { len: 30,  curve:  0.0, fogZone: true, rockHazard: 'left' }, // FOG PATCH 1 + rocks left
+      { len: 28,  curve: -3.6, rockHazard: 'right' },               // hidden fog hairpin + rocks
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir: -1 },   // FORK 2 entry — valley bypass
+      { len: 55,  curve:  0.0, forkSection: true, branchDir: -1 },  // FORK 2 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir: -1 },   // FORK 2 exit
+      { len: 30,  curve:  0.0, fogZone: true, rockHazard: 'both' }, // FOG PATCH 2 + rocks both sides
+      { len: 10,  curve:  0.0 },                                     // switchback approach
+      { len: 20,  curve: -3.5 },                                     // 180° SWITCHBACK
+      { len: 10,  curve:  0.0 },                                     // switchback exit
+      { len: 30,  curve:  2.8, rockHazard: 'left' },                // sweeping right + rocks left
+      { len: 40,  curve:  0.0, rockHazard: 'right' },               // mid-mountain + rocks right
       { len: 32,  curve: -4.5, rockHazard: 'left' },                // SEVERE left + rock
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 3 entry — blind apex
-      { len: 50,  curve:  0.0, forkSection: true },                 // FORK 3 body
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 3 exit
-      { len: 25,  curve:  0.0, fogZone: true },                     // FOG PATCH 3
-      { len: 50,  curve:  0.0 },                                     // descending straight
-      { len: 28,  curve:  2.4 },                                     // right sweeper
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir:  1 },   // FORK 3 entry — blind apex
+      { len: 50,  curve:  0.0, forkSection: true, branchDir:  1 },  // FORK 3 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir:  1 },   // FORK 3 exit
+      { len: 25,  curve:  0.0, fogZone: true, rockHazard: 'both' }, // FOG PATCH 3 + rocks both
+      { len: 50,  curve:  0.0, rockHazard: 'both' },                // descending + rocks both sides
+      { len: 28,  curve:  2.4, rockHazard: 'left' },                // right sweeper + rocks
       { len: 28,  curve: -2.4 },                                     // left sweeper
-      { len: 65,  curve:  0.0 },                                     // return summit straight
+      { len: 65,  curve:  0.0, rockHazard: 'right' },               // return summit + rocks right
       { len: 28,  curve: -3.0 },                                     // final left
       { len: 25,  curve:  0.0 },
     ]
@@ -142,30 +151,32 @@ const TRACK_DEFS = [
       { len: 28,  curve:  2.0 },                                          // gentle right
       { len: 28,  curve: -2.0 },                                          // S left
       { len: 28,  curve:  2.0 },                                          // S right — triple-S opening
-      { len: 8,   curve:  0.0, forkEntry: true },                         // FORK 1 entry — river bank
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir: -1 },        // FORK 1 entry — river bank
       { len: 55,  curve:  0.0, forkSection: true, item: 'grip',
-        surfaceGrip: 0.72 },                                              // FORK 1: left=river(slippery)
-      { len: 8,   curve:  0.0, forkExit: true },                         // FORK 1 exit
+        surfaceGrip: 0.72, branchDir: -1 },                              // FORK 1: branch=river(left)
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir: -1 },        // FORK 1 exit
       { len: 30,  curve:  0.0, surfaceGrip: 0.55 },                      // MUD PATCH 1
       { len: 40,  curve:  0.0 },                                          // canopy tunnel straight
       { len: 32,  curve: -3.6 },                                          // jungle hairpin left
-      { len: 8,   curve:  0.0, forkEntry: true },                         // FORK 2 entry — jungle bypass
-      { len: 55,  curve:  0.0, forkSection: true },                      // FORK 2 body
-      { len: 8,   curve:  0.0, forkExit: true },                         // FORK 2 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir:  1 },        // FORK 2 entry — jungle bypass
+      { len: 55,  curve:  0.0, forkSection: true, branchDir:  1 },       // FORK 2 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir:  1 },        // FORK 2 exit
       { len: 25,  curve:  0.0, surfaceGrip: 0.60 },                      // MUD PATCH 2
       { len: 25,  curve:  2.4 },                                          // vine crossing right
       { len: 25,  curve: -2.4 },                                          // quick left
-      { len: 30,  curve:  0.0, surfaceGrip: 0.60, riverCrossing: true }, // RIVER CROSSING
-      { len: 50,  curve:  0.0 },                                          // river-bank back straight
+      { len: 30,  curve:  0.0, surfaceGrip: 0.60, riverCrossing: true, floodBlind: true }, // RIVER CROSSING — flood blind
+      { len: 5,   curve:  4.5 },                                          // sharp turn onto island
+      { len: 40,  curve:  3.5, floodBlind: true },                        // 360° ISLAND LOOP — flood blind
+      { len: 5,   curve: -4.5 },                                          // island exit
       { len: 22,  curve:  1.8 },                                          // S chain 1
-      { len: 22,  curve: -1.8 },                                          // S chain 2
+      { len: 22,  curve: -1.8, floodBlind: true },                        // S chain 2 — flood blind
       { len: 22,  curve:  1.8 },                                          // S chain 3 — triple-S
       { len: 22,  curve: -1.8 },                                          // S chain 4 — quad-S
       { len: 45,  curve:  0.0 },                                          // finish straight
       { len: 28,  curve: -2.8 },                                          // final hairpin
-      { len: 8,   curve:  0.0, forkEntry: true },                         // FORK 3 entry — finish bypass
-      { len: 45,  curve:  0.0, forkSection: true },                      // FORK 3 body
-      { len: 8,   curve:  0.0, forkExit: true },                         // FORK 3 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir: -1 },        // FORK 3 entry — finish bypass
+      { len: 45,  curve:  0.0, forkSection: true, branchDir: -1 },       // FORK 3 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir: -1 },        // FORK 3 exit
       { len: 22,  curve:  0.0 },
     ]
   },
@@ -181,21 +192,27 @@ const TRACK_DEFS = [
     hillColor: '#c8a040',
     bgObjects: 'desert',
     sections: [
-      { len: 150, curve:  0.0, heatZone: true },                      // LONGEST straight — heat
+      { len: 55,  curve:  0.0, heatZone: true },                      // opening heat blast
+      { len: 40,  curve:  0.0, heatZone: true, sandBlind: true },    // SAND BLIND zone 1 — road vanishes
+      { len: 55,  curve:  0.0, heatZone: true },                      // closing heat blast
       { len: 32,  curve:  2.2 },                                       // dune sweep right
-      { len: 8,   curve:  0.0, forkEntry: true },                      // FORK 1 entry — dune bypass
-      { len: 55,  curve:  0.0, forkSection: true, item: 'cool' },    // FORK 1 body
-      { len: 8,   curve:  0.0, forkExit: true },                      // FORK 1 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir:  1 },     // FORK 1 entry — dune bypass
+      { len: 55,  curve:  0.0, forkSection: true, item: 'cool', branchDir:  1 }, // FORK 1 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir:  1 },     // FORK 1 exit
       { len: 32,  curve: -1.8 },                                       // matching left
-      { len: 100, curve:  0.0, heatZone: true },                      // back straight — heat zone
+      { len: 25,  curve:  0.0, heatZone: true },                      // back straight approach
+      { len: 8,   curve:  2.8, heatZone: true },                     // dune spiral entry
+      { len: 34,  curve:  2.8, heatZone: true, sandBlind: true },    // 360° DUNE SPIRAL — sand blind
+      { len: 8,   curve: -2.8, heatZone: true },                     // dune spiral exit
+      { len: 25,  curve:  0.0, heatZone: true },                      // exit straight
       { len: 28,  curve:  3.0 },                                       // oasis hairpin right
-      { len: 8,   curve:  0.0, forkEntry: true },                      // FORK 2 entry — oasis bypass
-      { len: 55,  curve:  0.0, forkSection: true },                   // FORK 2 body
-      { len: 8,   curve:  0.0, forkExit: true },                      // FORK 2 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir: -1 },     // FORK 2 entry — oasis bypass
+      { len: 55,  curve:  0.0, forkSection: true, branchDir: -1 },    // FORK 2 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir: -1 },     // FORK 2 exit
       { len: 28,  curve: -2.8 },                                       // tight left
       { len: 50,  curve:  0.0, fogZone: true },                       // SANDSTORM POCKET 1
       { len: 25,  curve:  1.8 },                                       // S right
-      { len: 25,  curve: -1.8 },                                       // S left
+      { len: 25,  curve: -1.8, sandBlind: true },                      // S left — SAND BLIND zone 2
       { len: 40,  curve:  0.0, fogZone: true },                       // SANDSTORM POCKET 2
       { len: 60,  curve:  0.0, heatZone: true },                      // return straight — heat
       { len: 28,  curve: -2.4 },                                       // final corner
@@ -214,29 +231,33 @@ const TRACK_DEFS = [
     hillColor: '#4a5040',
     bgObjects: 'greatwall',
     sections: [
-      { len: 80,  curve:  0.0 },                                      // wall walkway straight
+      { len: 80,  curve:  0.0, brickHazard: 'left' },                // wall walkway — bricks left
       { len: 20,  curve:  0.0, roadWidthMult: 0.68 },               // watchtower 1 approach
       { len: 22,  curve:  3.8, roadWidthMult: 0.72 },               // watchtower sharp right
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 1 entry — mountain bypass
-      { len: 55,  curve:  0.0, forkSection: true, item: 'shield' }, // FORK 1 body
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 1 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir: -1 },   // FORK 1 entry — mountain bypass
+      { len: 55,  curve:  0.0, forkSection: true, item: 'shield', branchDir: -1 }, // FORK 1 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir: -1 },   // FORK 1 exit
       { len: 20,  curve: -3.8, roadWidthMult: 0.72 },               // watchtower sharp left
       { len: 20,  curve:  0.0, roadWidthMult: 0.68 },               // narrow exit
-      { len: 60,  curve:  0.0 },                                      // long wall section
+      { len: 60,  curve:  0.0, brickHazard: 'right' },               // long wall section — bricks right
       { len: 18,  curve:  0.0, roadWidthMult: 0.65 },               // tower 2 approach — NARROWEST
       { len: 20,  curve:  2.8, roadWidthMult: 0.68 },               // corner tower right
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 2 entry — ridge bypass
-      { len: 55,  curve:  0.0, forkSection: true, item: 'dragon' }, // FORK 2 body — DRAGON ORB
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 2 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir:  1 },   // FORK 2 entry — ridge bypass
+      { len: 55,  curve:  0.0, forkSection: true, item: 'dragon', branchDir:  1 }, // FORK 2 body — DRAGON ORB
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir:  1 },   // FORK 2 exit
       { len: 20,  curve: -2.8, roadWidthMult: 0.68 },               // corner tower left
       { len: 18,  curve:  0.0, roadWidthMult: 0.65 },               // narrow exit 2
-      { len: 50,  curve:  0.0 },                                      // descent section
+      { len: 50,  curve:  0.0, brickHazard: 'both' },                // descent — bricks both sides
       { len: 28,  curve: -4.2 },                                      // SEVERE left descent
-      { len: 8,   curve:  0.0, forkEntry: true },                    // FORK 3 entry — hillside
-      { len: 50,  curve:  0.0, forkSection: true },                 // FORK 3 body
-      { len: 8,   curve:  0.0, forkExit: true },                    // FORK 3 exit
+      { len: 8,   curve:  0.0, forkEntry: true,   branchDir: -1 },   // FORK 3 entry — hillside
+      { len: 50,  curve:  0.0, forkSection: true, branchDir: -1 },  // FORK 3 body
+      { len: 8,   curve:  0.0, forkExit: true,    branchDir: -1 },   // FORK 3 exit
       { len: 28,  curve:  4.2 },                                      // severe right recovery
-      { len: 70,  curve:  0.0 },                                      // final wall straight
+      { len: 15,  curve:  0.0, brickHazard: 'left' },                // spiral approach — bricks
+      { len: 8,   curve: -3.5 },                                      // spiral entry
+      { len: 36,  curve: -3.5 },                                      // 360° DRAGON WALL SPIRAL
+      { len: 8,   curve:  3.5 },                                      // spiral exit
+      { len: 3,   curve:  0.0 },                                      // rejoin
       { len: 25,  curve:  0.0, roadWidthMult: 0.70 },               // last watchtower narrow
       { len: 28,  curve: -2.0 },                                      // gentle left to finish
       { len: 22,  curve:  0.0 },                                      // finish run
@@ -271,6 +292,10 @@ function buildTrack(trackIdx) {
   const rawForkSection   = [];
   const rawForkEntry     = [];
   const rawForkExit      = [];
+  const rawBranchDir     = [];
+  const rawSandBlind     = [];
+  const rawFloodBlind    = [];
+  const rawBrickHazard   = [];
 
   for (const sec of def.sections) {
     const mid = Math.floor(sec.len / 2);
@@ -283,11 +308,15 @@ function buildTrack(trackIdx) {
       rawOilSlick.push(!!sec.oilSlick);
       rawHeatZone.push(!!sec.heatZone);
       rawSlipstream.push(!!sec.slipstreamZone);
-      rawRockHazard.push(i === mid ? (sec.rockHazard || null) : null);
+      rawRockHazard.push(sec.rockHazard  ? (i % 5 === 2 ? sec.rockHazard  : null) : null);
       rawRiverCrossing.push(!!sec.riverCrossing);
       rawForkSection.push(!!sec.forkSection);
       rawForkEntry.push(!!sec.forkEntry);
       rawForkExit.push(!!sec.forkExit);
+      rawBranchDir.push(sec.branchDir || 0);
+      rawSandBlind.push(!!sec.sandBlind);
+      rawFloodBlind.push(!!sec.floodBlind);
+      rawBrickHazard.push(sec.brickHazard ? (i % 6 === 2 ? sec.brickHazard : null) : null);
     }
   }
 
@@ -326,6 +355,10 @@ function buildTrack(trackIdx) {
       forkSection:    isFork,
       forkEntry:      isForkEntry,
       forkExit:       isForkExit,
+      branchDir:      rawBranchDir[j],
+      sandBlind:      rawSandBlind[j],
+      floodBlind:     rawFloodBlind[j],
+      brickHazard:    rawBrickHazard[j],
       roadColor,
       grassColor:     even
                         ? (def.hillColor || '#2d7a2d')
@@ -387,14 +420,18 @@ const ALT_ROUTES_BY_TRACK = {
       hillColor:  '#04090f',
       skyTop: '#020510', skyBot: '#0a1830',   // deep night harbour sky
       sections: [
-        { len: 12, curve:  4.8 },             // SHARP RIGHT — you've turned onto the dock
-        { len: 35, curve:  0.0 },             // long harbour straight, wide
-        { len: 18, curve: -3.0 },             // left bend along harbour wall
-        { len: 25, curve:  0.0 },             // dock mid-section
+        { len: 12, curve:  4.8 },             // SHARP RIGHT — onto the dock
+        { len: 18, curve:  2.0 },             // sweeping right along harbour wall
+        { len: 12, curve: -2.5 },             // left — pier side
+        { len: 12, curve:  1.8 },             // right — dock mid
+        { len: 18, curve: -3.0 },             // left bend
+        { len: 12, curve:  2.2 },             // right chicane
+        { len: 10, curve:  0.0, item: 'nitro' }, // short flat
         { len: 18, curve:  3.2 },             // right — pier end corner
-        { len: 30, curve:  0.0 },             // back stretch
+        { len: 14, curve: -2.0 },             // left return
+        { len: 12, curve:  1.5 },             // approach
         { len: 15, curve: -4.0 },             // hard left back toward main
-        { len: 20, curve:  0.0 },             // rejoin straight
+        { len: 15, curve:  0.0 },             // rejoin straight
       ]
     },
     {
@@ -425,9 +462,11 @@ const ALT_ROUTES_BY_TRACK = {
       sections: [
         { len: 10, curve:  4.5 },             // SHARP RIGHT — ramp up to roof
         { len: 25, curve: -1.8 },             // sweeping left across rooftop
-        { len: 20, curve:  0.0 },             // rooftop straight — city vista
+        { len: 10, curve:  2.0 },             // right — building edge glimpse
+        { len: 10, curve: -2.0 },             // left — back across roof
         { len: 18, curve:  3.5 },             // sharp right — edge of building
-        { len: 20, curve:  0.0 },             // straight along parapet
+        { len: 10, curve: -2.0 },             // left — along parapet
+        { len: 10, curve:  2.0 },             // right — parapet end
         { len: 18, curve: -3.5 },             // sharp left back
         { len: 25, curve: -1.5 },             // sweeping right descent
         { len: 15, curve:  0.0 },             // rejoin approach
@@ -481,7 +520,8 @@ const ALT_ROUTES_BY_TRACK = {
       sections: [
         { len: 10, curve:  4.0 },             // HARD RIGHT — onto inner arc
         { len: 50, curve:  2.8 },             // sustained Parabolica inner curve
-        { len: 20, curve:  0.0, item: 'shield' },
+        { len: 10, curve:  1.5, item: 'shield' }, // right — apex tighten
+        { len: 10, curve: -1.5 },             // left — brief kink
         { len: 30, curve:  2.2 },             // second arc section
         { len: 15, curve: -4.5 },             // hard left back out
         { len: 15, curve:  0.0 },
@@ -518,9 +558,11 @@ const ALT_ROUTES_BY_TRACK = {
       sections: [
         { len: 10, curve: -4.5 },             // SHARP LEFT — descend to valley
         { len: 35, curve: -1.5, roadWidthMult: 1.20 }, // sweeping left descent
-        { len: 30, curve:  0.0, roadWidthMult: 1.25 }, // wide valley floor straight
+        { len: 15, curve:  1.8, roadWidthMult: 1.25 }, // right — valley floor bend
+        { len: 15, curve: -1.5, roadWidthMult: 1.25 }, // left — valley widening
         { len: 20, curve:  1.8, roadWidthMult: 1.20, item: 'nitro' },
-        { len: 30, curve:  0.0, roadWidthMult: 1.20 }, // back stretch
+        { len: 15, curve: -2.0, roadWidthMult: 1.20 }, // left — return arc
+        { len: 15, curve:  1.5, roadWidthMult: 1.18 }, // right — exit approach
         { len: 20, curve: -2.0, roadWidthMult: 1.15 }, // curve to exit
         { len: 15, curve:  4.5 },             // HARD RIGHT — climb back to main
         { len: 15, curve:  0.0 },
@@ -537,7 +579,8 @@ const ALT_ROUTES_BY_TRACK = {
         { len: 10, curve:  4.2, oilSlick: true },      // SHARP RIGHT — up to ridge
         { len: 25, curve:  2.0, oilSlick: true },      // sweeping right along ridge
         { len: 20, curve: -3.0 },                       // left — ridge corner
-        { len: 25, curve:  0.0, item: 'cool' },         // exposed straight
+        { len: 12, curve:  1.8, item: 'cool' },         // right — exposed ridge crest
+        { len: 13, curve: -1.8 },                       // left — crest far side
         { len: 20, curve:  2.8, oilSlick: true },       // right — back edge
         { len: 20, curve: -2.5 },                       // left — descent starts
         { len: 15, curve: -4.0 },                       // HARD LEFT — back to main
@@ -635,7 +678,8 @@ const ALT_ROUTES_BY_TRACK = {
         { len: 10, curve: -4.5, roadWidthMult: 0.85 }, // SHARP LEFT — into ruins entrance
         { len: 20, curve: -2.5, roadWidthMult: 0.82 }, // sweeping left through pillars
         { len: 18, curve:  3.8, roadWidthMult: 0.80 }, // sharp right — ruins corner
-        { len: 20, curve:  0.0, roadWidthMult: 0.82 }, // ruins corridor
+        { len: 10, curve:  2.0, roadWidthMult: 0.82 }, // right — corridor bend
+        { len: 10, curve: -2.0, roadWidthMult: 0.82 }, // left — corridor return
         { len: 18, curve: -3.5, roadWidthMult: 0.80, item: 'nitro' }, // sharp left — inner court
         { len: 20, curve:  2.8, roadWidthMult: 0.82 }, // right — exit arch
         { len: 15, curve:  4.2 },                       // HARD RIGHT — back to desert road
@@ -652,7 +696,8 @@ const ALT_ROUTES_BY_TRACK = {
       sections: [
         { len: 10, curve:  4.0 },             // SHARP RIGHT — turn into oasis
         { len: 25, curve: -2.0 },             // sweeping left around oasis lake
-        { len: 20, curve:  0.0 },             // shaded straight — palm trees
+        { len: 10, curve:  1.8 },             // right — lakeside bend
+        { len: 10, curve: -1.8 },             // left — palm alley
         { len: 20, curve:  2.5 },             // right — far end of oasis
         { len: 25, curve: -2.5, item: 'turbo' }, // left — oasis return
         { len: 20, curve:  1.5 },             // gentle right — exit road
@@ -674,9 +719,11 @@ const ALT_ROUTES_BY_TRACK = {
       sections: [
         { len: 10, curve: -4.5, roadWidthMult: 1.15 }, // SHARP LEFT — drop below wall
         { len: 35, curve: -1.5, roadWidthMult: 1.18 }, // sweeping left along wall base
-        { len: 30, curve:  0.0, roadWidthMult: 1.20, item: 'nitro' }, // wide base straight
+        { len: 15, curve:  1.8, roadWidthMult: 1.20, item: 'nitro' }, // right — base bend
+        { len: 15, curve: -1.8, roadWidthMult: 1.20 }, // left — far base
         { len: 25, curve:  1.8, roadWidthMult: 1.15 }, // right — return curve
-        { len: 20, curve:  0.0, roadWidthMult: 1.12 }, // approach back up
+        { len: 10, curve:  1.5, roadWidthMult: 1.12 }, // right — tightening
+        { len: 10, curve: -1.5, roadWidthMult: 1.12 }, // left — chicane before climb
         { len: 15, curve:  4.5 },                       // HARD RIGHT — climb back to wall
         { len: 15, curve:  0.0 },
       ]
@@ -692,7 +739,8 @@ const ALT_ROUTES_BY_TRACK = {
         { len: 10, curve:  4.5, roadWidthMult: 0.80 }, // SHARP RIGHT — into village gate
         { len: 20, curve: -2.5, roadWidthMult: 0.76 }, // left — main village street
         { len: 20, curve:  2.0, roadWidthMult: 0.75 }, // right — market alley
-        { len: 20, curve:  0.0, roadWidthMult: 0.76 }, // village square straight
+        { len: 10, curve:  2.5, roadWidthMult: 0.76 }, // right — village square bend
+        { len: 10, curve: -2.5, roadWidthMult: 0.76 }, // left — square far side
         { len: 18, curve: -3.0, roadWidthMult: 0.78, item: 'shield' }, // left — temple road
         { len: 20, curve:  2.5, roadWidthMult: 0.80 }, // right — exit road
         { len: 15, curve: -4.5 },                       // SHARP LEFT — back to main wall

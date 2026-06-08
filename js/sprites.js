@@ -135,6 +135,7 @@ function drawMotoSprite(cx, cy, w, color, decal) {
   if (w < 5) return;
   const cm = {
     B: color,
+    C: '#1a1a1a',
     D: _darken(color, 0.65),
     S: _darken(color, 0.85),
     F: _darken(color, 0.80),
@@ -267,6 +268,19 @@ function renderAICars(W, H) {
     const spriteW   = p.rHalf * 0.42;
     if (spriteW < 6) continue;
 
+    // Nitro boost glow — blue halo behind the car when AI is boosting
+    if (ai.boosting) {
+      ctx.save();
+      ctx.globalAlpha = 0.50;
+      ctx.shadowColor = '#44aaff';
+      ctx.shadowBlur  = spriteW * 0.9;
+      ctx.fillStyle   = '#88ccff';
+      ctx.beginPath();
+      ctx.ellipse(aiScreenX, aiScreenY + spriteW * 0.15, spriteW * 0.28, spriteW * 0.18, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     switch (ai.vehicleType || 'f1') {
       case 'f1v2':   drawF1V2Sprite  (aiScreenX, aiScreenY, spriteW, ai.color, ai.decal); break;
       case 'nascar': drawNASCARSprite(aiScreenX, aiScreenY, spriteW, ai.color, ai.decal); break;
@@ -284,6 +298,82 @@ function renderAICars(W, H) {
       ctx.arc(aiScreenX, aiScreenY, spriteW * 0.7, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
+    }
+  }
+}
+
+// ── Road hazard sprites (rocks for Mountain Pass, bricks for Great Wall) ──────
+
+function _drawRock(cx, cy, w) {
+  if (w < 3) return;
+  const h = w * 0.70;
+  ctx.save();
+  ctx.fillStyle = '#7a6a55';
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.50, cy);
+  ctx.lineTo(cx - w * 0.38, cy - h * 0.85);
+  ctx.lineTo(cx - w * 0.05, cy - h);
+  ctx.lineTo(cx + w * 0.42, cy - h * 0.60);
+  ctx.lineTo(cx + w * 0.50, cy - h * 0.20);
+  ctx.lineTo(cx + w * 0.40, cy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.28, cy - h * 0.30);
+  ctx.lineTo(cx - w * 0.12, cy - h * 0.90);
+  ctx.lineTo(cx + w * 0.10, cy - h * 0.70);
+  ctx.lineTo(cx - w * 0.05, cy - h * 0.25);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function _drawBrick(cx, cy, w) {
+  if (w < 4) return;
+  const h = w * 0.75;
+  ctx.save();
+  ctx.fillStyle = '#7a7a7a';
+  ctx.fillRect(cx - w * 0.5, cy - h, w, h);
+  ctx.fillStyle = '#5a5a5a';
+  ctx.fillRect(cx - w * 0.5, cy - h * 0.50, w, 2);   // horizontal mortar
+  ctx.fillRect(cx,           cy - h,          2, h * 0.50); // upper vertical
+  ctx.fillRect(cx - w * 0.26, cy - h * 0.50, 2, h * 0.50); // lower vertical
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.fillRect(cx - w * 0.5, cy - h, w, 2);           // top highlight
+  ctx.restore();
+}
+
+function renderRoadHazards(W, H) {
+  if (!player || !segments || !_projected) return;
+  const pz = player.z;
+
+  for (let relZ = 2; relZ < DRAW_DISTANCE - 1; relZ++) {
+    const segIdx = Math.floor(pz + relZ) % TRACK_SEGMENTS;
+    const seg    = segments[segIdx];
+    if (!seg || (!seg.rockHazard && !seg.brickHazard)) continue;
+
+    const n = clamp(relZ, 1, DRAW_DISTANCE - 1);
+    const p = _projected[n];
+    if (!p || p.rHalf < 3) continue;
+
+    const eff = typeof _effectivePlayerX !== 'undefined' ? _effectivePlayerX : 0;
+    const baseCx = p.centerX - eff * (p.rHalf / ROAD_HALF_NORM);
+
+    if (seg.rockHazard) {
+      const rw = Math.max(3, p.rHalf * 0.36);
+      if (seg.rockHazard === 'left' || seg.rockHazard === 'both')
+        _drawRock(baseCx - p.rHalf * 0.78, p.screenY, rw);
+      if (seg.rockHazard === 'right' || seg.rockHazard === 'both')
+        _drawRock(baseCx + p.rHalf * 0.78, p.screenY, rw);
+    }
+
+    if (seg.brickHazard) {
+      const bw = Math.max(4, p.rHalf * 0.46);
+      if (seg.brickHazard === 'left' || seg.brickHazard === 'both')
+        _drawBrick(baseCx - p.rHalf * 0.76, p.screenY, bw);
+      if (seg.brickHazard === 'right' || seg.brickHazard === 'both')
+        _drawBrick(baseCx + p.rHalf * 0.76, p.screenY, bw);
     }
   }
 }

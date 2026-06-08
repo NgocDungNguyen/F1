@@ -99,26 +99,54 @@ Track definitions in `TRACK_DEFS` in `tracks.js`. Each track has sections (`{len
 
 | ID | Name | Subtitle | Unique Mechanic | Max Curve | Item Drop |
 |----|------|----------|----------------|-----------|-----------|
-| 0 | Monaco | Night Glamour Circuit | Tunnel (fog+narrow), Casino oil slick | ±4.2° | 💙 NITRO |
-| 1 | Monza | Temple of Speed | Slipstream bonus on long straights | ±3.0° | 🟠 TURBO |
-| 2 | Mountain Pass | Alpine Danger | Fog patches (3 zones), rock hazards | ±4.5° | 🟡 SHIELD |
-| 3 | Amazon Circuit | Jungle Rally | Mud patches, blue river crossing | ±3.6° | 🟢 GRIP |
-| 4 | Sahara Desert | Desert Endurance | Heat drain + 2 sandstorm pockets | ±3.0° | 🩵 COOL |
-| 5 | Great Wall | The Dragon Circuit | Narrow watchtowers (0.65×), fireworks finish | ±4.2° | 🔴 DRAGON |
+| 0 | Monaco | Night Glamour Circuit | Tunnel, oil slick, 180°/180° S-turn finale | ±4.2° | 💙 NITRO |
+| 1 | Monza | Temple of Speed | Slipstream + 360° banked oval on main straight | ±3.0° | 🟠 TURBO |
+| 2 | Mountain Pass | Alpine Danger | Fog + scattered rocks + 180° switchback | ±4.5° | 🟡 SHIELD |
+| 3 | Amazon Circuit | Jungle Rally | Flood blindness + 360° island loop (final lap) | ±4.5° | 🟢 GRIP |
+| 4 | Sahara Desert | Desert Endurance | Sand blindness + 360° dune spiral (final lap) | ±3.0° | 🩵 COOL |
+| 5 | Great Wall | The Dragon Circuit | Brick hazards + 360° dragon spiral | ±4.2° | 🔴 DRAGON |
+
+### Dramatic curve types
+
+Every track now includes at least one extended-angle turn that goes far beyond a simple hairpin:
+
+| Type | Typical angle | Where | Feel |
+| ---- | ------------- | ----- | ---- |
+| **180° hairpin** | ~180° | Monaco finale, Mountain Pass switchback | Tight U-turn — brake hard, apex, exit |
+| **270° arc** | ~270° | Sahara dune approach | Long sustained sweep, speed bleeds off |
+| **360° corkscrew** | ~360° | Monza oval, Amazon island loop, Sahara dune spiral, Great Wall dragon spiral | Road continuously curves — disorienting and exhilarating |
+
+Angle is computed as `Σ(len × curve) × 0.045 rad`. Highest single-direction accumulated angle: Great Wall dragon spiral ≈ 398°.
 
 ### Track-specific mechanics
 
-**Monaco — tunnel**: `fogZone + roadWidthMult: 0.82` segments. Draw distance collapses to 35. Dark sky overlay with orange side-light strips. Two casino-exit segments have `oilSlick: true` — car slides randomly on exit.
+**Monaco — tunnel + hairpin finale**: `fogZone + roadWidthMult: 0.82` segments. Two casino-exit `oilSlick` segments. The final straight is replaced by a back-to-back 180° left / 180° right hairpin pair before Rascasse.
 
-**Monza — slipstream**: `slipstreamZone: true` on the 150-segment main straight and 100-segment back straight. In `checkSlipstream()`, if any AI is 3–8 segments ahead in the same lane, `player.slipstreaming = true` and speed gains +0.8/s up to 1.12× maxSpeed. HUD shows "⚡ SLIPSTREAM +12%".
+**Monza — slipstream + banked oval**: `slipstreamZone: true` on the main and back straights. The 150-segment main straight now includes a 50-segment **360° banked oval** sweep (curve 2.8) mid-blast — you're still on full throttle but the road curves all the way round.
 
-**Mountain Pass — fog + rocks**: Three `fogZone` sections collapse visibility. Two segments have `rockHazard: 'left'|'right'` — a boulder is drawn on that side of the road.
+**Mountain Pass — fog + rocks + switchback**:
 
-**Amazon — mud + river**: `surfaceGrip: 0.55` on mud sections reduces effective grip regardless of weather. River crossing: `roadWidthMult: 1.10` (slightly wider), `surfaceGrip: 0.60`, and blue road color `#4a6890`. The `grip` item negates all surface penalties for 8s.
+- Three `fogZone` sections collapse draw distance to 35 segments.
+- Ten sections carry `rockHazard: 'left' | 'right' | 'both'` — perspective-scaled gray rocks rendered at road edge. Driving into a rock (|x| > 0.72) cuts speed by ~14%.
+- Valley floor contains a **180° switchback** hairpin (20 segs, curve −3.5).
 
-**Sahara — heat drain**: `heatZone: true` on long straight sections. `player.heat` builds at 0.06/s when speed > 85% maxSpeed; cools at 0.04/s otherwise. Above 0.85 heat, engine drags at −0.5/s. `fogZone` on two sections creates localized sandstorm pockets (amber-brown sky tint + collapsed visibility). HUD shows ENGINE TEMP bar for all vehicles on Sahara.
+**Amazon — mud + river + flood blindness**:
 
-**Great Wall — narrow + dragon**: `roadWidthMult: 0.65–0.72` at watchtower sections moves the road edge inward — car physically fits through less space. The `dragon` item gives 4s of super speed + collision immunity; `player.shield` absorbs the first hit. `triggerFireworks()` launches a 3-second particle burst overlay on the finish screen.
+- `surfaceGrip: 0.55` mud patches and `riverCrossing` blue road as before.
+- **Final lap flood**: `floodBlind` segments on the river crossing, one S-chain, and the new island loop change road color to deep water blue — lane markings vanish and you must steer blind.
+- The 50-segment river-bank straight is replaced by a **360° island loop** (sharp entry → 40-seg 3.5-curve island → sharp exit).
+
+**Sahara — heat drain + sand blindness + dune spiral**:
+
+- `heatZone` builds engine heat above 85% speed; `cool` item resets it.
+- **Final lap sand**: three `sandBlind` sections change the road color to match the desert terrain — asphalt disappears and you're guessing the line. Affects a 40-seg stretch mid-straight, the second S-curve, and the dune spiral itself.
+- 100-segment back straight replaced by a **360° dune spiral** (curve 2.8, total ≈ 360°) with sand blindness active inside it.
+
+**Great Wall — narrow + dragon + brick hazards + wall spiral**:
+
+- `roadWidthMult: 0.65–0.72` watchtower squeezes.
+- Three sections carry `brickHazard: 'left' | 'right' | 'both'` — large stone wall-brick blocks drawn on-road; hitting one (|x| > 0.68) cuts speed by ~22%.
+- Final 70-segment straight is replaced by a **360°+ dragon spiral** (curve −3.5, 44 segs ≈ 400°) before the last watchtower.
 
 ### Shortcuts / alternate routes
 Every track has 2–3 shortcut sections (35–45 segments each). These are marked `shortcut: true` and render as brown/gravel surface with yellow dashed edges and double-chevron arrows at the entry point. They are wider (1.12×) and free from rumble strips. Items are often placed on shortcut bypasses to reward taking the alternate route. All items respawn at the start of each new lap via `respawnTrackItems()`.

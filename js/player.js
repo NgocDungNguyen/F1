@@ -74,11 +74,33 @@ function updatePlayer(dt, inp) {
   // ── Current segment (main track or alt route) ─────────────────────────
   let seg;
   if (player.altRoute && typeof _altRouteData !== 'undefined' && _altRouteData[player.altRoute.idx]) {
-    const ar  = _altRouteData[player.altRoute.idx];
-    const idx = Math.floor(player.altRoute.altZ) % Math.max(1, ar.builtSegments.length);
-    seg       = ar.builtSegments[idx];
-  } else {
+    const ar = _altRouteData[player.altRoute.idx];
+    if (!ar.builtSegments || ar.builtSegments.length === 0) {
+      player.altRoute = null;  // guard against empty route data
+    } else {
+      const idx = Math.floor(player.altRoute.altZ) % ar.builtSegments.length;
+      seg       = ar.builtSegments[idx];
+    }
+  }
+  if (!seg) {
     seg = segments[Math.floor(player.z) % TRACK_SEGMENTS];
+  }
+
+  // ── Rock / brick hazard collision ─────────────────────────────────────
+  if (seg && !player.shield) {
+    const hazard  = seg.rockHazard || seg.brickHazard;
+    const isBrick = !!seg.brickHazard;
+    if (hazard) {
+      const hitEdge    = isBrick ? 0.68 : 0.72;
+      const speedMult  = isBrick ? 0.78 : 0.86;
+      const hitLeft    = (hazard === 'left'  || hazard === 'both') && player.x < -hitEdge;
+      const hitRight   = (hazard === 'right' || hazard === 'both') && player.x >  hitEdge;
+      if ((hitLeft || hitRight) && player.speed > 0.5) {
+        player.speed *= speedMult;
+        if (typeof showPopup === 'function')
+          showPopup(isBrick ? 'WALL BRICK!' : 'ROCK!', '#ff4400', 0.6);
+      }
+    }
   }
 
   // ── Nitro fill ─────────────────────────────────────────────────────────

@@ -357,44 +357,46 @@ function renderRoad(W, H) {
     ctx.fillRect(0, y, W, 1);
 
     if (seg.forkSection) {
-      // ── FORK: two separate road strips ─────────────────────────────
-      const stripHalfPx = FORK_STRIP_HALF * roadHalfPx;  // each strip half-width in px
-      const stripSepPx  = (FORK_DIV + FORK_STRIP_HALF) * roadHalfPx; // strip center from road center
-      const leftCx  = cx - stripSepPx;   // left strip center (shortcut)
-      const rightCx = cx + stripSepPx;   // right strip center (main)
+      // ── FORK: Y-junction — branch road peels away toward the horizon ──
+      const stripHalfPx = FORK_STRIP_HALF * roadHalfPx;
+      const stripSepPx  = (FORK_DIV + FORK_STRIP_HALF) * roadHalfPx;
+      const bDir = seg.branchDir || 1;
 
-      // Left strip rumble
-      const lRumL = Math.max(0, leftCx - stripHalfPx - rumW);
-      const lRumR = Math.min(W, leftCx - stripHalfPx);
-      if (lRumR > lRumL) { ctx.fillStyle = seg.rumbleColor; ctx.fillRect(lRumL, y, lRumR - lRumL, 1); }
+      // Branch diverges by (1-scale)*W*0.5 sideways — zero at player's feet,
+      // large at the horizon, making the road visually split into the distance.
+      const divergePx = (1.0 - scale) * W * 0.5 * bDir;
 
-      // Left strip surface (shortcut — dirt brown)
-      const lL = Math.max(0, leftCx - stripHalfPx), lR = Math.min(W, leftCx + stripHalfPx);
-      if (lR > lL) {
-        ctx.fillStyle = (seg.index & 1) ? '#8a6a40' : '#7a5a30';
-        ctx.fillRect(lL, y, lR - lL, 1);
-        // Dashed center line on left strip
+      const mainCx   = cx - bDir * stripSepPx;           // main: opposite side, stays straight
+      const branchCx = cx + bDir * stripSepPx + divergePx; // branch: peels away
+
+      // ── Main road strip (asphalt) ──
+      const mRumA = Math.max(0, mainCx - bDir * (stripHalfPx + rumW));
+      const mRumB = Math.max(0, mainCx - bDir * stripHalfPx);
+      const mRumL2 = Math.min(mRumA, mRumB), mRumR2 = Math.max(mRumA, mRumB);
+      if (mRumR2 > mRumL2) { ctx.fillStyle = seg.rumbleColor; ctx.fillRect(mRumL2, y, mRumR2 - mRumL2, 1); }
+      const mL = Math.max(0, mainCx - stripHalfPx), mR = Math.min(W, mainCx + stripHalfPx);
+      if (mR > mL) {
+        ctx.fillStyle = seg.roadColor;
+        ctx.fillRect(mL, y, mR - mL, 1);
         if (seg.index % 4 < 2) {
-          ctx.fillStyle = 'rgba(255,220,100,0.7)';
-          const dL = Math.max(lL, leftCx - dashW), dR = Math.min(lR, leftCx + dashW);
+          ctx.fillStyle = '#fff';
+          const dL = Math.max(mL, mainCx - dashW), dR = Math.min(mR, mainCx + dashW);
           if (dR > dL) ctx.fillRect(dL, y, dR - dL, 1);
         }
       }
 
-      // Right strip rumble
-      const rRumL = Math.max(0, rightCx + stripHalfPx);
-      const rRumR = Math.min(W, rightCx + stripHalfPx + rumW);
-      if (rRumR > rRumL) { ctx.fillStyle = seg.rumbleColor; ctx.fillRect(rRumL, y, rRumR - rRumL, 1); }
-
-      // Right strip surface (main road — asphalt)
-      const rL2 = Math.max(0, rightCx - stripHalfPx), rR2 = Math.min(W, rightCx + stripHalfPx);
-      if (rR2 > rL2) {
-        ctx.fillStyle = seg.roadColor;
-        ctx.fillRect(rL2, y, rR2 - rL2, 1);
-        // White center dash on right strip
+      // ── Branch road strip (dirt) — vanishes off-screen ahead ──
+      const bL = Math.max(0, branchCx - stripHalfPx), bR = Math.min(W, branchCx + stripHalfPx);
+      if (bR > bL) {
+        const bRumA = branchCx + bDir * stripHalfPx;
+        const bRumB = branchCx + bDir * (stripHalfPx + rumW);
+        const bRumL = Math.max(0, Math.min(bRumA, bRumB)), bRumR = Math.min(W, Math.max(bRumA, bRumB));
+        if (bRumR > bRumL) { ctx.fillStyle = seg.rumbleColor; ctx.fillRect(bRumL, y, bRumR - bRumL, 1); }
+        ctx.fillStyle = (seg.index & 1) ? '#8a6a40' : '#7a5a30';
+        ctx.fillRect(bL, y, bR - bL, 1);
         if (seg.index % 4 < 2) {
-          ctx.fillStyle = '#fff';
-          const dL = Math.max(rL2, rightCx - dashW), dR = Math.min(rR2, rightCx + dashW);
+          ctx.fillStyle = 'rgba(255,220,100,0.7)';
+          const dL = Math.max(bL, branchCx - dashW), dR = Math.min(bR, branchCx + dashW);
           if (dR > dL) ctx.fillRect(dL, y, dR - dL, 1);
         }
       }
@@ -414,17 +416,26 @@ function renderRoad(W, H) {
       // Road surface
       const rL = Math.max(0, sL), rR = Math.min(W, sR);
       if (rR > rL) {
+        const isLastLap = typeof raceData !== 'undefined' && raceData.lap >= TOTAL_LAPS;
         if (seg.isFinish) {
           const sq = Math.max(4, roadHalfPx / 5);
           ctx.fillStyle = (Math.floor(cx/sq) + Math.floor(y/sq)) % 2 === 0 ? '#fff' : '#000';
+        } else if (seg.sandBlind && isLastLap) {
+          // Road covered by sand — blends with desert terrain
+          ctx.fillStyle = (seg.index & 1) ? '#c8a040' : '#b8913a';
+        } else if (seg.floodBlind && isLastLap) {
+          // Road submerged — blue flood water
+          ctx.fillStyle = (seg.index & 1) ? '#3a6090' : '#4a70a8';
         } else {
           ctx.fillStyle = seg.roadColor;
         }
         ctx.fillRect(rL, y, rR - rL, 1);
       }
 
-      // Centre dash
-      if (!seg.isFinish && rR > rL && seg.index % 4 < 2) {
+      // Centre dash — hidden when road is blind (no visible markings)
+      const isLastLapDash = typeof raceData !== 'undefined' && raceData.lap >= TOTAL_LAPS;
+      const blindHere = isLastLapDash && (seg.sandBlind || seg.floodBlind);
+      if (!seg.isFinish && !blindHere && rR > rL && seg.index % 4 < 2) {
         ctx.fillStyle = '#fff';
         const dL = Math.max(rL, cx - dashW), dR = Math.min(rR, cx + dashW);
         if (dR > dL) ctx.fillRect(dL, y, dR - dL, 1);

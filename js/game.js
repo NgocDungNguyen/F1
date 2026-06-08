@@ -520,6 +520,7 @@ function _renderRaceScene() {
   renderRoad(W, H);
   renderItemOrbs(W, H);
   renderAICars(W, H);
+  renderRoadHazards(W, H);
 
   if (typeof renderWeatherOverlay === 'function') renderWeatherOverlay(W, H);
 
