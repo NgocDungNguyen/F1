@@ -171,6 +171,8 @@ function startMultiplayerRace() {
   STATE = 'COUNTDOWN';
   if (!audioCtx) initAudio();
   scheduleCountdownBeeps();
+  // BUG FIX K: build 3D scene for multiplayer (was missing, left stale single-player geometry)
+  if (_3dReady && typeof rebuild3DScene === 'function') rebuild3DScene();
 }
 
 // ── Lap check for multiplayer (does not auto-set STATE = FINISH) ────────────

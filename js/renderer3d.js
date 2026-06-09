@@ -32,6 +32,7 @@ let _playerMesh3D = null;
 const _aiMeshes3D  = [];
 const _orbMeshes3D = [];   // { mesh, segIdx }
 const _hazMeshes3D = [];
+let _mainSegments  = null; // snapshot of main-track segments (immune to alt-route swap)
 
 const _camTarget = new THREE.Vector3();
 const _camLook   = new THREE.Vector3();
@@ -183,7 +184,8 @@ function buildGround3D() {
 //  Axis: +Z = car forward (nose direction)
 // ─────────────────────────────────────────────────────────────────────────────
 function _mat(c)      { return new THREE.MeshLambertMaterial({ color: typeof c === 'string' ? new THREE.Color(c) : c }); }
-function _darkMat(c)  { return _mat(new THREE.Color(c).multiplyScalar(0.50)); }
+function _darkMat(c)  { return _mat(new THREE.Color(c).multiplyScalar(0.65)); }  // was 0.50 — less black
+function _glowMat(c)  { const col = new THREE.Color(c); return new THREE.MeshLambertMaterial({ color: col, emissive: col, emissiveIntensity: 0.6 }); }
 
 function _addBox(g, sx, sy, sz, mat, x, y, z, rx, ry) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
@@ -205,21 +207,32 @@ function _addWheel(g, radius, thick, x, z, mat) {
 function _buildF1(colorStr) {
   const g = new THREE.Group();
   const b = _mat(colorStr), d = _darkMat(colorStr), carb = _mat('#0d0d0d'), tire = _mat('#1a1a1a');
-  _addBox(g, 1.88, 0.40, 4.20, b,    0,   0.38,  0);       // main body
-  _addBox(g, 0.85, 0.18, 0.90, d,    0,   0.24,  2.26);    // nose
-  _addBox(g, 0.88, 0.50, 1.45, carb, 0,   0.78, -0.20);    // cockpit
-  _addBox(g, 0.52, 0.28, 1.75, b,    0.96,0.36, -0.12);    // sidepod R
-  _addBox(g, 0.52, 0.28, 1.75, b,   -0.96,0.36, -0.12);    // sidepod L
-  _addBox(g, 2.28, 0.06, 0.38, d,    0,   0.10,  2.52);    // front wing
-  _addBox(g, 1.52, 0.06, 0.50, d,    0,   1.04, -2.16);    // rear wing
-  _addBox(g, 0.06, 0.44, 0.50, carb, 0.77,0.85, -2.16);   // endplate R
-  _addBox(g, 0.06, 0.44, 0.50, carb,-0.77,0.85, -2.16);   // endplate L
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.055, 6, 16, Math.PI), carb);
-  halo.rotation.y = Math.PI / 2;  halo.position.set(0, 1.04, -0.07);  g.add(halo);
-  _addWheel(g, 0.38, 0.34,  1.12,  1.53, tire);  // FL
-  _addWheel(g, 0.38, 0.34, -1.12,  1.53, tire);  // FR
-  _addWheel(g, 0.40, 0.40,  1.12, -1.60, tire);  // RL
-  _addWheel(g, 0.40, 0.40, -1.12, -1.60, tire);  // RR
+  const silver = _mat('#b0b0b0'), red = _glowMat('#ff2200');
+  _addBox(g, 1.88, 0.46, 4.00, b,    0,   0.42,  0);       // main body (taller, slightly shorter)
+  _addBox(g, 1.60, 0.10, 0.40, d,    0,   0.20,  1.80);    // floor/splitter transition
+  _addBox(g, 0.80, 0.16, 1.10, d,    0,   0.26,  2.20);    // nose cone
+  _addBox(g, 0.50, 0.08, 0.36, d,    0,   0.14,  2.70);    // nose tip
+  _addBox(g, 0.90, 0.55, 1.50, carb, 0,   0.84, -0.18);    // cockpit tub (taller)
+  _addBox(g, 0.60, 0.28, 0.30, carb, 0,   0.85,  0.56);    // cockpit front lip
+  _addBox(g, 0.54, 0.32, 1.80, b,    0.98,0.40, -0.10);    // sidepod R
+  _addBox(g, 0.54, 0.32, 1.80, b,   -0.98,0.40, -0.10);    // sidepod L
+  _addBox(g, 0.30, 0.18, 0.50, silver, 0.94,0.22, 1.20);  // sidepod inlet R
+  _addBox(g, 0.30, 0.18, 0.50, silver,-0.94,0.22, 1.20);  // sidepod inlet L
+  _addBox(g, 2.30, 0.07, 0.42, d,    0,   0.12,  2.60);    // front wing main
+  _addBox(g, 2.50, 0.06, 0.14, d,    0,   0.22,  2.72);    // front wing upper flap
+  _addBox(g, 1.60, 0.07, 0.58, d,    0,   1.12, -2.10);    // rear wing
+  _addBox(g, 0.07, 0.50, 0.58, carb, 0.82,0.88, -2.10);   // endplate R
+  _addBox(g, 0.07, 0.50, 0.58, carb,-0.82,0.88, -2.10);   // endplate L
+  _addBox(g, 0.60, 0.46, 0.80, d,    0,   0.54, -2.10);    // engine cover / diffuser upper
+  _addBox(g, 0.08, 0.12, 0.28, silver, 0.30, 0.70, -2.15); // exhaust R
+  _addBox(g, 0.08, 0.12, 0.28, silver,-0.30, 0.70, -2.15); // exhaust L
+  _addBox(g, 1.00, 0.04, 0.12, red,   0,   0.22, -2.42);   // brake lights (emissive)
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.058, 6, 16, Math.PI), carb);
+  halo.rotation.y = Math.PI / 2;  halo.position.set(0, 1.08, -0.05);  g.add(halo);
+  _addWheel(g, 0.38, 0.34,  1.12,  1.55, tire);  // FL
+  _addWheel(g, 0.38, 0.34, -1.12,  1.55, tire);  // FR
+  _addWheel(g, 0.40, 0.42,  1.12, -1.62, tire);  // RL (wider)
+  _addWheel(g, 0.40, 0.42, -1.12, -1.62, tire);  // RR (wider)
   return g;
 }
 
@@ -227,21 +240,27 @@ function _buildF1(colorStr) {
 function _buildLMP(colorStr) {
   const g = new THREE.Group();
   const b = _mat(colorStr), d = _darkMat(colorStr), carb = _mat('#080808'), tire = _mat('#1a1a1a');
-  _addBox(g, 2.08, 0.36, 4.75, b,    0,   0.28,  0);       // wide flat body
-  _addBox(g, 0.78, 0.20, 1.35, d,    0,   0.20,  2.58);    // long nose
-  _addBox(g, 0.92, 0.40, 1.38, carb, 0,   0.70, -0.13);    // lower canopy
-  _addBox(g, 0.80, 0.22, 1.18, carb, 0,   0.95, -0.13);    // canopy dome
-  _addBox(g, 0.70, 0.30, 1.48, b,    1.01,0.36,  1.38);    // front fender R
-  _addBox(g, 0.70, 0.30, 1.48, b,   -1.01,0.36,  1.38);    // front fender L
-  _addBox(g, 0.74, 0.34, 1.58, b,    1.03,0.36, -1.52);    // rear fender R
-  _addBox(g, 0.74, 0.34, 1.58, b,   -1.03,0.36, -1.52);    // rear fender L
-  _addBox(g, 0.05, 0.72, 1.76, d,    0,   0.70, -1.38);    // shark fin
-  _addBox(g, 2.18, 0.06, 0.38, d,    0,   0.11,  2.88);    // front splitter
-  _addBox(g, 1.88, 0.08, 0.52, d,    0,   0.16, -2.62);    // rear diffuser
-  _addWheel(g, 0.38, 0.34,  1.10,  1.50, tire);
-  _addWheel(g, 0.38, 0.34, -1.10,  1.50, tire);
-  _addWheel(g, 0.40, 0.40,  1.10, -1.56, tire);
-  _addWheel(g, 0.40, 0.40, -1.10, -1.56, tire);
+  const silver = _mat('#aaaaaa'), red = _glowMat('#ff2200');
+  _addBox(g, 2.08, 0.38, 4.60, b,    0,   0.30,  0);       // wide flat body
+  _addBox(g, 0.76, 0.18, 1.40, d,    0,   0.20,  2.52);    // long nose
+  _addBox(g, 0.48, 0.10, 0.44, d,    0,   0.13,  3.14);    // nose tip
+  _addBox(g, 0.94, 0.44, 1.42, carb, 0,   0.74, -0.10);    // lower canopy
+  _addBox(g, 0.82, 0.26, 1.22, carb, 0,   1.02, -0.10);    // canopy dome
+  _addBox(g, 0.70, 0.10, 0.30, _mat('#88aacc'), 0, 1.02, 0.52); // windscreen (light blue)
+  _addBox(g, 0.72, 0.32, 1.52, b,    1.02,0.36,  1.32);    // front fender R
+  _addBox(g, 0.72, 0.32, 1.52, b,   -1.02,0.36,  1.32);    // front fender L
+  _addBox(g, 0.76, 0.36, 1.62, b,    1.04,0.36, -1.48);    // rear fender R
+  _addBox(g, 0.76, 0.36, 1.62, b,   -1.04,0.36, -1.48);    // rear fender L
+  _addBox(g, 0.06, 0.80, 1.80, d,    0,   0.72, -1.32);    // shark fin
+  _addBox(g, 2.20, 0.07, 0.42, d,    0,   0.12,  2.90);    // front splitter
+  _addBox(g, 1.90, 0.10, 0.56, d,    0,   0.18, -2.58);    // rear diffuser
+  _addBox(g, 0.10, 0.14, 0.30, silver, 0.38, 0.36, -2.68); // exhaust R
+  _addBox(g, 0.10, 0.14, 0.30, silver,-0.38, 0.36, -2.68); // exhaust L
+  _addBox(g, 1.10, 0.05, 0.14, red,   0,   0.24, -2.60);   // rear brake lights
+  _addWheel(g, 0.38, 0.34,  1.10,  1.52, tire);
+  _addWheel(g, 0.38, 0.34, -1.10,  1.52, tire);
+  _addWheel(g, 0.40, 0.40,  1.10, -1.54, tire);
+  _addWheel(g, 0.40, 0.40, -1.10, -1.54, tire);
   return g;
 }
 
@@ -249,19 +268,27 @@ function _buildLMP(colorStr) {
 function _buildNASCAR(colorStr) {
   const g = new THREE.Group();
   const b = _mat(colorStr), d = _darkMat(colorStr), carb = _mat('#111111'), tire = _mat('#1a1a1a');
-  _addBox(g, 2.16, 0.62, 4.82, b,    0,   0.46,  0);       // wide body
-  _addBox(g, 1.72, 0.58, 2.68, b,    0,   1.10, -0.20);    // closed roof/cabin
-  _addBox(g, 1.58, 0.04, 0.82, carb, 0,   1.20,  1.00, -0.50);  // windshield
-  _addBox(g, 1.58, 0.04, 0.68, carb, 0,   1.16, -1.52,  0.42);  // rear glass
-  _addBox(g, 1.86, 0.26, 0.10, d,    0,   0.96, -2.42);    // rear spoiler
-  _addBox(g, 2.10, 0.32, 0.18, d,    0,   0.32,  2.40);    // front bumper
-  _addBox(g, 2.10, 0.32, 0.18, d,    0,   0.32, -2.40);    // rear bumper
-  _addBox(g, 0.02, 0.48, 0.72, _mat('#ffffff'),  1.10, 0.60,  0);  // number R
-  _addBox(g, 0.02, 0.48, 0.72, _mat('#ffffff'), -1.10, 0.60,  0);  // number L
-  _addWheel(g, 0.40, 0.38,  1.11,  1.60, tire);
-  _addWheel(g, 0.40, 0.38, -1.11,  1.60, tire);
-  _addWheel(g, 0.42, 0.40,  1.11, -1.70, tire);
-  _addWheel(g, 0.42, 0.40, -1.11, -1.70, tire);
+  const white = _mat('#ffffff'), silver = _mat('#b8b8b8'), red = _glowMat('#ff2200');
+  _addBox(g, 2.16, 0.66, 4.82, b,    0,   0.48,  0);       // wide body
+  _addBox(g, 1.76, 0.62, 2.72, b,    0,   1.14, -0.18);    // closed roof/cabin
+  _addBox(g, 1.62, 0.05, 0.86, carb, 0,   1.22,  1.02, -0.50);  // windshield
+  _addBox(g, 1.62, 0.05, 0.72, carb, 0,   1.18, -1.54,  0.44);  // rear glass
+  _addBox(g, 1.90, 0.30, 0.12, d,    0,   1.00, -2.44);    // rear spoiler
+  _addBox(g, 0.50, 0.12, 1.10, d,    0,   0.80, -2.44);    // spoiler mount
+  _addBox(g, 2.14, 0.34, 0.22, d,    0,   0.34,  2.40);    // front bumper
+  _addBox(g, 2.14, 0.34, 0.22, d,    0,   0.34, -2.40);    // rear bumper
+  _addBox(g, 0.40, 0.20, 0.22, silver,0,  0.80,  2.40);    // front grille
+  _addBox(g, 0.30, 0.14, 0.24, silver,0,  0.60,  2.52);    // front air scoop
+  _addBox(g, 0.14, 0.10, 0.40, silver, 0.70, 0.72,  0.60); // side exhaust R
+  _addBox(g, 0.14, 0.10, 0.40, silver,-0.70, 0.72,  0.60); // side exhaust L
+  _addBox(g, 0.03, 0.54, 0.84, white,  1.09, 0.64,  0);    // number panel R
+  _addBox(g, 0.03, 0.54, 0.84, white, -1.09, 0.64,  0);    // number panel L
+  _addBox(g, 0.80, 0.03, 0.60, white,  0,    1.46,  0);    // roof number (top)
+  _addBox(g, 1.20, 0.05, 0.16, red,    0,    0.28, -2.42); // rear brake lights
+  _addWheel(g, 0.40, 0.40,  1.12,  1.62, tire);
+  _addWheel(g, 0.40, 0.40, -1.12,  1.62, tire);
+  _addWheel(g, 0.42, 0.42,  1.12, -1.72, tire);
+  _addWheel(g, 0.42, 0.42, -1.12, -1.72, tire);
   return g;
 }
 
@@ -272,43 +299,50 @@ function _buildMoto(colorStr) {
   const d    = _darkMat(colorStr);
   const carb = _mat('#101010');
   const tire = _mat('#191919');
-  const suit = _mat('#1a1a28');
+  const suit = _mat(new THREE.Color(colorStr).multiplyScalar(0.75));  // tinted team suit
   const helm = _mat(colorStr);
+  const visor = _mat('#22cc88');  // distinctive green visor
 
   // Wheels (radius, thickness, x, z)
-  _addWheel(g, 0.30, 0.20,  0,  0.85, tire);   // front — r=0.30 so bottom at y=0 ✓
-  _addWheel(g, 0.32, 0.22,  0, -0.82, tire);   // rear  — r=0.32
+  _addWheel(g, 0.30, 0.20,  0,  0.85, tire);   // front
+  _addWheel(g, 0.32, 0.22,  0, -0.82, tire);   // rear
 
   // Front fork legs
-  _addBox(g, 0.05, 0.42, 0.06, carb,  0.12, 0.48,  0.72);
-  _addBox(g, 0.05, 0.42, 0.06, carb, -0.12, 0.48,  0.72);
+  _addBox(g, 0.06, 0.46, 0.07, carb,  0.13, 0.48,  0.72);
+  _addBox(g, 0.06, 0.46, 0.07, carb, -0.13, 0.48,  0.72);
+  // Fork brace
+  _addBox(g, 0.30, 0.05, 0.07, carb,  0,    0.30,  0.72);
 
   // Swing arm
-  _addBox(g, 0.05, 0.05, 0.40, carb, 0, 0.30, -0.60);
+  _addBox(g, 0.06, 0.06, 0.44, carb, 0, 0.30, -0.58);
 
   // Body — narrow (0.44 m wide)
-  _addBox(g, 0.44, 0.52, 2.10, b,    0, 0.76,  0.05);
-  // Front cowl
-  _addBox(g, 0.40, 0.62, 0.34, b,    0, 0.88,  0.72);
+  _addBox(g, 0.44, 0.54, 2.10, b,    0, 0.76,  0.05);
+  // Front cowl / fairing
+  _addBox(g, 0.42, 0.66, 0.38, b,    0, 0.88,  0.72);
+  // Lower fairing
+  _addBox(g, 0.40, 0.28, 1.20, d,    0, 0.48,  0.20);
   // Fuel tank
-  _addBox(g, 0.34, 0.24, 0.48, d,    0, 1.02,  0.16);
-  // Tail
-  _addBox(g, 0.30, 0.20, 0.50, d,    0, 0.86, -0.60);
+  _addBox(g, 0.36, 0.26, 0.50, d,    0, 1.04,  0.16);
+  // Tail section
+  _addBox(g, 0.30, 0.22, 0.56, b,    0, 0.88, -0.60);
+  // Tail light (emissive)
+  _addBox(g, 0.22, 0.06, 0.06, _glowMat('#ff2200'), 0, 0.88, -0.90);
+  // Mirrors
+  _addBox(g, 0.14, 0.06, 0.08, carb,  0.28, 1.10,  0.55);
+  _addBox(g, 0.14, 0.06, 0.08, carb, -0.28, 1.10,  0.55);
 
   // ── Rider ──────────────────────────────────────────────────────────────────
-  // Legs (crouched low)
-  _addBox(g, 0.48, 0.32, 0.82, suit, 0, 1.18,  0.04);
-  // Upper body (leaning forward over tank)
-  _addBox(g, 0.44, 0.44, 0.60, suit, 0, 1.55,  0.24);
-  // Arms reaching forward to bars
-  _addBox(g, 0.14, 0.12, 0.48, suit,  0.26, 1.50,  0.62);
-  _addBox(g, 0.14, 0.12, 0.48, suit, -0.26, 1.50,  0.62);
-  // Helmet
-  const helmMesh = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 8), helm);
-  helmMesh.position.set(0, 1.88, 0.20);
+  _addBox(g, 0.48, 0.34, 0.84, suit, 0, 1.18,  0.04);     // legs (crouched)
+  _addBox(g, 0.44, 0.46, 0.64, suit, 0, 1.57,  0.22);     // torso (leaning forward)
+  _addBox(g, 0.15, 0.13, 0.50, suit,  0.27, 1.50,  0.60); // arm R
+  _addBox(g, 0.15, 0.13, 0.50, suit, -0.27, 1.50,  0.60); // arm L
+  // Helmet (sphere)
+  const helmMesh = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8), helm);
+  helmMesh.position.set(0, 1.90, 0.18);
   g.add(helmMesh);
-  // Visor
-  _addBox(g, 0.22, 0.10, 0.06, _mat('#3a7acc'), 0, 1.84, 0.43);
+  // Visor (distinctive color so helmet reads clearly)
+  _addBox(g, 0.24, 0.11, 0.07, visor, 0, 1.85, 0.44);
 
   return g;
 }
@@ -357,9 +391,17 @@ function _placeMesh(mesh, z, x, steer) {
 
 function updateCars3D() {
   if (!player || !trackPath3D.length) return;
-  _placeMesh(_playerMesh3D, player.z, player.x, player.steeringAngle || 0);
+  // BUG FIX I: during alt route, hold car at the fork-entry point on the main track
+  // (alt route has no 3D geometry; mainEntryZ is where the fork begins on the main road)
+  let pz = player.z;
+  if (player.altRoute && typeof _altRouteData !== 'undefined') {
+    const ar = _altRouteData[player.altRoute.idx];
+    if (ar && ar.mainEntryZ != null) pz = ar.mainEntryZ;
+  }
+  _placeMesh(_playerMesh3D, pz, player.x, player.steeringAngle || 0);
   if (typeof aiCars !== 'undefined') {
     for (let i = 0; i < aiCars.length; i++) {
+      if (!_aiMeshes3D[i]) continue;  // BUG FIX J: guard against mesh count mismatch
       _placeMesh(_aiMeshes3D[i], aiCars[i].z, aiCars[i].x, 0);
     }
   }
@@ -370,6 +412,7 @@ function initItemOrbs3D() {
   _orbMeshes3D.forEach(o => _scene.remove(o.mesh));
   _orbMeshes3D.length = 0;
   if (typeof _itemRespawnMap === 'undefined' || typeof ITEM_DEFS === 'undefined') return;
+  _mainSegments = segments;  // BUG FIX H: snapshot before any alt-route swap can corrupt it
   for (let i = 0; i < TRACK_SEGMENTS; i++) {
     const id = _itemRespawnMap[i];
     if (!id || !ITEM_DEFS[id]) continue;
@@ -389,8 +432,9 @@ function initItemOrbs3D() {
 
 function updateItemOrbs3D() {
   const t = Date.now() * 0.001;
+  const segs = _mainSegments || segments;  // BUG FIX H: never use swapped alt-route segments
   for (const o of _orbMeshes3D) {
-    const seg = segments[o.segIdx];
+    const seg = segs[o.segIdx];
     o.mesh.visible = !!(seg && seg.item);
     if (o.mesh.visible) {
       o.mesh.rotation.y = t * 2.0;
@@ -489,6 +533,7 @@ function init3DRenderer(canvas3D, W, H) {
 // ── Rebuild — call after buildTrack() + initPlayer() + initAI() ──────────────
 function rebuild3DScene() {
   if (!_thr) return;
+  _mainSegments = null;  // reset; initItemOrbs3D will re-capture
   build3DPath();
   buildRoad3D();
   buildGround3D();
