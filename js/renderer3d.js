@@ -1,46 +1,44 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  THREE.JS 3D RENDERER  (complete rewrite — all bugs fixed)
+//  THREE.JS 3D RENDERER  —  v3 (all root-cause bugs fixed)
 //
-//  Fixed bugs:
-//   1. Triangle winding corrected → road normals point UP, road visible
-//   2. THREE.DoubleSide on all road/ground materials (belt-and-braces)
-//   3. Car Y=0 in group space so wheels sit on road, not floating
-//   4. Camera snapped to correct position before first render (no lerp glitch)
-//   5. Four distinct vehicle meshes: f1, f1v2, nascar, moto
-//   6. initCars3D() reads vehicleType for player AND all AI cars
+//  Bug fixes from v2:
+//   A. CURVE_3D 0.045 → 0.020  (hairpins no longer self-intersect)
+//   B. Road loop stops at TRACK_SEGMENTS-1 (no insane wrap polygon to origin)
+//   C. Three Y layers: road=0.010, rumble=0.016, dash=0.022  (no Z-fighting)
+//   D. Car rotation: +atan2 not −atan2  (car faces direction of travel)
+//   E. Car group at w.y+0.010 = road surface  (wheels touch road, not sinking)
+//   F. Item orbs 1.2× larger + 1.8 m high  (clearly visible)
+//   G. Added FogExp2 for depth cue
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
-// ── World-space constants ────────────────────────────────────────────────────
-const SEG_LEN_3D    = 4.0;   // metres per track segment
-const ROAD_HALF_3D  = 5.5;   // road half-width (metres) — full road = 11m
-const RUMBLE_W_3D   = 0.65;  // rumble strip width
-const DASH_HALF_3D  = 0.20;  // centre-line dash half-width
-const CURVE_3D      = 0.045; // rad / segment / curve-unit (identical to minimap)
+// ── World constants ───────────────────────────────────────────────────────────
+const SEG_LEN_3D   = 4.0;   // metres per track segment
+const ROAD_HALF_3D = 5.5;   // road half-width  (full = 11 m)
+const RUMBLE_3D    = 0.65;  // rumble strip width
+const DASH_3D      = 0.20;  // centre-line dash half-width
+// BUG FIX A: was 0.045 — curves now realistic (hairpin ~90-150° not 200°+)
+const CURVE_3D     = 0.020;
 
-// ── Module state ─────────────────────────────────────────────────────────────
-let _thr    = null;
-let _scene  = null;
-let _cam    = null;
-let _sun    = null;
-let _amb    = null;
+// Y-layer heights (prevent Z-fighting between overlapping geometries)
+const YR = 0.010;   // road surface
+const YU = 0.016;   // rumble strips (above road)
+const YD = 0.022;   // centre dashes (above rumble)
 
-let _roadMesh   = null;
-let _rumbleMesh = null;
-let _dashMesh   = null;
-let _groundMesh = null;
-
+// ── Module state ──────────────────────────────────────────────────────────────
+let _thr = null, _scene = null, _cam = null, _sun = null, _amb = null;
+let _roadMesh = null, _rumbleMesh = null, _dashMesh = null, _groundMesh = null;
 let _playerMesh3D = null;
 const _aiMeshes3D  = [];
-const _orbMeshes3D = [];
+const _orbMeshes3D = [];   // { mesh, segIdx }
 const _hazMeshes3D = [];
 
 const _camTarget = new THREE.Vector3();
 const _camLook   = new THREE.Vector3();
-let   _camReady  = false;   // true after first snap
+let   _camReady  = false;
 
 // ── 3D track path ─────────────────────────────────────────────────────────────
-let trackPath3D = [];
+let trackPath3D = [];   // { x, y, z, fwdX, fwdZ, rgtX, rgtZ }
 
 function build3DPath() {
   if (!segments || !segments.length) return;
@@ -48,7 +46,8 @@ function build3DPath() {
   let wx = 0, wy = 0, wz = 0, ang = 0;
   for (let i = 0; i < TRACK_SEGMENTS; i++) {
     const sA = Math.sin(ang), cA = Math.cos(ang);
-    trackPath3D.push({ x: wx, y: wy, z: wz, fwdX: sA, fwdZ: cA, rgtX: cA, rgtZ: -sA });
+    trackPath3D.push({ x: wx, y: wy, z: wz,
+      fwdX: sA, fwdZ: cA, rgtX: cA, rgtZ: -sA });
     ang += segments[i].curve * CURVE_3D;
     wx  += sA * SEG_LEN_3D;
     wz  += cA * SEG_LEN_3D;
@@ -57,33 +56,41 @@ function build3DPath() {
 
 // ── Track → world ─────────────────────────────────────────────────────────────
 function trackToWorld3D(z, x) {
-  if (!trackPath3D.length) return { x:0, y:0, z:0, fwdX:0, fwdZ:1, rgtX:1, rgtZ:0 };
+  if (!trackPath3D.length)
+    return { x:0, y:0, z:0, fwdX:0, fwdZ:1, rgtX:1, rgtZ:0 };
   const i0 = ((Math.floor(z) % TRACK_SEGMENTS) + TRACK_SEGMENTS) % TRACK_SEGMENTS;
   const i1 = (i0 + 1) % TRACK_SEGMENTS;
   const f  = z - Math.floor(z);
   const a  = trackPath3D[i0], b = trackPath3D[i1];
   const lx = a.x + (b.x - a.x) * f,  lz = a.z + (b.z - a.z) * f;
-  const rx = a.rgtX + (b.rgtX - a.rgtX) * f,  rz = a.rgtZ + (b.rgtZ - a.rgtZ) * f;
+  const rx = a.rgtX + (b.rgtX - a.rgtX) * f;
+  const rz = a.rgtZ + (b.rgtZ - a.rgtZ) * f;
   return {
-    x: lx + rx * x * ROAD_HALF_3D, y: a.y, z: lz + rz * x * ROAD_HALF_3D,
+    x:    lx + rx * x * ROAD_HALF_3D,
+    y:    a.y,
+    z:    lz + rz * x * ROAD_HALF_3D,
     fwdX: a.fwdX + (b.fwdX - a.fwdX) * f,
     fwdZ: a.fwdZ + (b.fwdZ - a.fwdZ) * f,
     rgtX: rx, rgtZ: rz,
   };
 }
 
-// ── Geometry helper ───────────────────────────────────────────────────────────
-// BUG FIX #1 & #2: use DoubleSide on all road meshes; indices use correct CCW winding
-function _mkMesh(posArr, colArr, idxArr) {
+// ── Geometry builder ──────────────────────────────────────────────────────────
+function _mkMesh(pos, col, idx) {
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(posArr), 3));
-  geo.setAttribute('color',    new THREE.BufferAttribute(new Float32Array(colArr), 3));
-  geo.setIndex(idxArr);
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(new Float32Array(col), 3));
+  geo.setIndex(idx);
   geo.computeVertexNormals();
   return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
     vertexColors: true,
-    side: THREE.DoubleSide,   // visible from both sides — guarantees road is seen
+    side: THREE.DoubleSide,
   }));
+}
+
+// vertex at lateral offset 'lat' from path point 'tp', at height 'y'
+function _ev(tp, lat, y) {
+  return [tp.x + tp.rgtX * lat, y, tp.z + tp.rgtZ * lat];
 }
 
 // ── Road geometry ─────────────────────────────────────────────────────────────
@@ -93,247 +100,226 @@ function buildRoad3D() {
     if (m) { _scene.remove(m); m.geometry.dispose(); }
   });
 
-  const Y = 0.02;   // slightly above ground
   const rP=[],rC=[],rI=[], uP=[],uC=[],uI=[], dP=[],dC=[],dI=[];
 
-  function edge(tp, lat) {
-    return [tp.x + tp.rgtX * lat, Y, tp.z + tp.rgtZ * lat];
-  }
-
-  for (let i = 0; i < TRACK_SEGMENTS; i++) {
+  // BUG FIX B: loop stops at TRACK_SEGMENTS-1 — no wrap from last seg to seg-0
+  // (that wrap created a gigantic polygon slashing across the entire world)
+  for (let i = 0; i < TRACK_SEGMENTS - 1; i++) {
     const t0  = trackPath3D[i];
-    const t1  = trackPath3D[(i + 1) % TRACK_SEGMENTS];
+    const t1  = trackPath3D[i + 1];    // NOT (i+1)%TRACK_SEGMENTS
     const seg = segments[i];
     const ev  = (i & 1) === 0;
 
-    // ── BUG FIX #1: correct CCW winding so normals point UP (+Y) ───────────
-    // Quad vertices:  b=curr-L  b+1=next-L  b+2=curr-R  b+3=next-R
-    // Triangle A (b, b+1, b+2) = curr-L, next-L, curr-R → CCW from above ✓
-    // Triangle B (b+2, b+1, b+3) = curr-R, next-L, next-R → CCW from above ✓
+    // ── Road surface  (CCW winding → normals +Y) ────────────────────────────
+    // Vertex layout: b=curr-L  b+1=next-L  b+2=curr-R  b+3=next-R
     const b = rP.length / 3;
-    rP.push(...edge(t0,-ROAD_HALF_3D), ...edge(t1,-ROAD_HALF_3D),
-             ...edge(t0, ROAD_HALF_3D), ...edge(t1, ROAD_HALF_3D));
-    rI.push(b, b+1, b+2,  b+2, b+1, b+3);
+    rP.push(
+      ..._ev(t0, -ROAD_HALF_3D, YR), ..._ev(t1, -ROAD_HALF_3D, YR),
+      ..._ev(t0,  ROAD_HALF_3D, YR), ..._ev(t1,  ROAD_HALF_3D, YR)
+    );
+    rI.push(b, b+1, b+2,  b+2, b+1, b+3);   // CCW from above ✓
 
     let r, g, bv;
-    if (seg.isFinish)          { const c=ev?0.95:0.05; r=g=bv=c; }
-    else if (seg.riverCrossing){ r=0.27; g=0.38; bv=0.54; }
-    else if (seg.sandBlind)    { r=0.78; g=0.63; bv=0.25; }
-    else if (seg.floodBlind)   { r=0.22; g=0.36; bv=0.62; }
-    else if (seg.forkSection)  { r=0.48; g=0.46; bv=0.42; }
-    else { const c=ev?0.50:0.56; r=g=bv=c; }
-    for (let v=0;v<4;v++) rC.push(r,g,bv);
+    if (seg.isFinish)           { const c = ev ? 0.95 : 0.05; r=g=bv=c; }
+    else if (seg.riverCrossing) { r=0.27; g=0.38; bv=0.54; }
+    else if (seg.sandBlind)     { r=0.78; g=0.63; bv=0.25; }
+    else if (seg.floodBlind)    { r=0.22; g=0.36; bv=0.62; }
+    else if (seg.forkSection)   { r=0.48; g=0.46; bv=0.42; }
+    else { const c = ev ? 0.50 : 0.57; r=g=bv=c; }
+    for (let v = 0; v < 4; v++) rC.push(r, g, bv);
 
-    // Rumble strips — correct CCW winding
+    // ── Rumble strips — BUG FIX C: YU=0.016 (above road) no Z-fight ────────
     const rc = ev ? [0.88,0.10,0.10] : [1.0,1.0,1.0];
-    const ul = uP.length/3;
-    uP.push(...edge(t0,-ROAD_HALF_3D-RUMBLE_W_3D), ...edge(t1,-ROAD_HALF_3D-RUMBLE_W_3D),
-             ...edge(t0,-ROAD_HALF_3D),             ...edge(t1,-ROAD_HALF_3D));
-    uI.push(ul,ul+1,ul+2, ul+2,ul+1,ul+3);
-    for (let v=0;v<4;v++) uC.push(...rc);
+    const ul = uP.length / 3;
+    uP.push(
+      ..._ev(t0, -ROAD_HALF_3D - RUMBLE_3D, YU), ..._ev(t1, -ROAD_HALF_3D - RUMBLE_3D, YU),
+      ..._ev(t0, -ROAD_HALF_3D,             YU), ..._ev(t1, -ROAD_HALF_3D,             YU)
+    );
+    uI.push(ul, ul+1, ul+2,  ul+2, ul+1, ul+3);
+    for (let v = 0; v < 4; v++) uC.push(...rc);
 
-    const ur = uP.length/3;
-    uP.push(...edge(t0, ROAD_HALF_3D),             ...edge(t1, ROAD_HALF_3D),
-             ...edge(t0, ROAD_HALF_3D+RUMBLE_W_3D), ...edge(t1, ROAD_HALF_3D+RUMBLE_W_3D));
-    uI.push(ur,ur+1,ur+2, ur+2,ur+1,ur+3);
-    for (let v=0;v<4;v++) uC.push(...rc);
+    const ur = uP.length / 3;
+    uP.push(
+      ..._ev(t0,  ROAD_HALF_3D,             YU), ..._ev(t1,  ROAD_HALF_3D,             YU),
+      ..._ev(t0,  ROAD_HALF_3D + RUMBLE_3D, YU), ..._ev(t1,  ROAD_HALF_3D + RUMBLE_3D, YU)
+    );
+    uI.push(ur, ur+1, ur+2,  ur+2, ur+1, ur+3);
+    for (let v = 0; v < 4; v++) uC.push(...rc);
 
-    // Centre dashes — correct CCW winding
+    // ── Centre dashes — BUG FIX C: YD=0.022 (above rumble) ──────────────────
     if (ev && !seg.isFinish) {
-      const db = dP.length/3;
-      dP.push(...edge(t0,-DASH_HALF_3D), ...edge(t1,-DASH_HALF_3D),
-               ...edge(t0, DASH_HALF_3D), ...edge(t1, DASH_HALF_3D));
-      dI.push(db,db+1,db+2, db+2,db+1,db+3);
-      for (let v=0;v<4;v++) dC.push(1,1,1);
+      const db = dP.length / 3;
+      dP.push(
+        ..._ev(t0, -DASH_3D, YD), ..._ev(t1, -DASH_3D, YD),
+        ..._ev(t0,  DASH_3D, YD), ..._ev(t1,  DASH_3D, YD)
+      );
+      dI.push(db, db+1, db+2,  db+2, db+1, db+3);
+      for (let v = 0; v < 4; v++) dC.push(1, 1, 1);
     }
   }
 
-  _roadMesh   = _mkMesh(rP,rC,rI); _scene.add(_roadMesh);
-  _rumbleMesh = _mkMesh(uP,uC,uI); _scene.add(_rumbleMesh);
-  _dashMesh   = _mkMesh(dP,dC,dI); _scene.add(_dashMesh);
+  _roadMesh   = _mkMesh(rP, rC, rI); _scene.add(_roadMesh);
+  _rumbleMesh = _mkMesh(uP, uC, uI); _scene.add(_rumbleMesh);
+  _dashMesh   = _mkMesh(dP, dC, dI); _scene.add(_dashMesh);
 }
 
-// ── Ground ────────────────────────────────────────────────────────────────────
+// ── Ground plane ──────────────────────────────────────────────────────────────
 function buildGround3D() {
   if (_groundMesh) { _scene.remove(_groundMesh); _groundMesh.geometry.dispose(); }
-  const colStr = (currentTrackDef && currentTrackDef.hillColor) || '#2d7a2d';
-  const mat = new THREE.MeshLambertMaterial({
-    color: new THREE.Color(colStr),
-    side: THREE.DoubleSide,
-  });
-  _groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(14000,14000), mat);
+  const col = (currentTrackDef && currentTrackDef.hillColor) || '#2d7a2d';
+  _groundMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(20000, 20000),
+    new THREE.MeshLambertMaterial({ color: new THREE.Color(col), side: THREE.DoubleSide })
+  );
   _groundMesh.rotation.x = -Math.PI / 2;
-  _groundMesh.position.y = -0.05;
+  _groundMesh.position.y = -0.06;
   _scene.add(_groundMesh);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  VEHICLE MESHES
-//  BUG FIX #3: All meshes designed so wheel bottoms touch Y=0 in group space.
-//  Group is placed at trackY + 0.0 (not + 0.44) so wheels sit on road.
-//
-//  Axis convention (group local space):
-//    +Z = forward (nose direction)
-//    +X = right
-//    +Y = up
+//  All wheels:  centre at (x, r, z) in group space → bottom at y=0
+//  Group placed at world y = road surface = YR = 0.010
+//  Axis: +Z = car forward (nose direction)
 // ─────────────────────────────────────────────────────────────────────────────
+function _mat(c)      { return new THREE.MeshLambertMaterial({ color: typeof c === 'string' ? new THREE.Color(c) : c }); }
+function _darkMat(c)  { return _mat(new THREE.Color(c).multiplyScalar(0.50)); }
 
-function _mat(color) { return new THREE.MeshLambertMaterial({ color: new THREE.Color(color) }); }
-function _mats(colorStr, f) { return new THREE.MeshLambertMaterial({ color: new THREE.Color(colorStr).multiplyScalar(f) }); }
-
-// helper: add a box child to group
-function _box(g, sx, sy, sz, mat, x, y, z, rx, ry, rz) {
+function _addBox(g, sx, sy, sz, mat, x, y, z, rx, ry) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
   m.position.set(x, y, z);
   if (rx) m.rotation.x = rx;
   if (ry) m.rotation.y = ry;
-  if (rz) m.rotation.z = rz;
   g.add(m);
 }
 
-// helper: add a wheel cylinder to group — radius r, thickness t, at (x,y,z)
-// Wheel bottom sits at y - r  →  to sit on ground: y = r
-function _wheel(g, r, t, x, y, z, mat) {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, t, 16), mat);
+function _addWheel(g, radius, thick, x, z, mat) {
+  // radius = wheel radius, y = radius so bottom touches y=0 in group space
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, thick, 16), mat);
   m.rotation.z = Math.PI / 2;
-  m.position.set(x, y, z);
+  m.position.set(x, radius, z);
   g.add(m);
 }
 
 // ── F1 Classic ────────────────────────────────────────────────────────────────
-function _createF1_3D(colorStr) {
-  const g    = new THREE.Group();
-  const b    = _mat(colorStr);
-  const dark = _mats(colorStr, 0.50);
-  const carb = _mat('#101010');
-  const tire = _mat('#1e1e1e');
-
-  // Main body (centre of body at y=0.38, half-height=0.20, bottom=0.18 → off road)
-  _box(g, 1.90,0.40,4.30, b,    0,0.38,  0);
-  _box(g, 0.88,0.18,0.90, dark, 0,0.25,  2.30);  // nose
-  _box(g, 0.90,0.52,1.50, carb, 0,0.78, -0.22);  // cockpit
-  _box(g, 0.55,0.30,1.80, b,    0.97,0.37,-0.15); // sidepod R
-  _box(g, 0.55,0.30,1.80, b,   -0.97,0.37,-0.15); // sidepod L
-  _box(g, 2.30,0.06,0.40, dark, 0,0.11, 2.53);   // front wing
-  _box(g, 1.55,0.06,0.52, dark, 0,1.06,-2.18);   // rear wing
-  _box(g, 0.06,0.45,0.52, carb, 0.78,0.87,-2.18);// endplate R
-  _box(g, 0.06,0.45,0.52, carb,-0.78,0.87,-2.18);// endplate L
-  // Halo
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.44,0.055,6,16,Math.PI), carb);
-  halo.rotation.y = Math.PI/2; halo.position.set(0,1.05,-0.08); g.add(halo);
-  // Wheels — radius=0.38, centre at y=0.38 → bottom at y=0 ✓
-  _wheel(g, 0.38,0.34,  1.13,0.38, 1.55, tire); // FL
-  _wheel(g, 0.38,0.34, -1.13,0.38, 1.55, tire); // FR
-  _wheel(g, 0.40,0.40,  1.13,0.40,-1.62, tire); // RL
-  _wheel(g, 0.40,0.40, -1.13,0.40,-1.62, tire); // RR
+function _buildF1(colorStr) {
+  const g = new THREE.Group();
+  const b = _mat(colorStr), d = _darkMat(colorStr), carb = _mat('#0d0d0d'), tire = _mat('#1a1a1a');
+  _addBox(g, 1.88, 0.40, 4.20, b,    0,   0.38,  0);       // main body
+  _addBox(g, 0.85, 0.18, 0.90, d,    0,   0.24,  2.26);    // nose
+  _addBox(g, 0.88, 0.50, 1.45, carb, 0,   0.78, -0.20);    // cockpit
+  _addBox(g, 0.52, 0.28, 1.75, b,    0.96,0.36, -0.12);    // sidepod R
+  _addBox(g, 0.52, 0.28, 1.75, b,   -0.96,0.36, -0.12);    // sidepod L
+  _addBox(g, 2.28, 0.06, 0.38, d,    0,   0.10,  2.52);    // front wing
+  _addBox(g, 1.52, 0.06, 0.50, d,    0,   1.04, -2.16);    // rear wing
+  _addBox(g, 0.06, 0.44, 0.50, carb, 0.77,0.85, -2.16);   // endplate R
+  _addBox(g, 0.06, 0.44, 0.50, carb,-0.77,0.85, -2.16);   // endplate L
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.055, 6, 16, Math.PI), carb);
+  halo.rotation.y = Math.PI / 2;  halo.position.set(0, 1.04, -0.07);  g.add(halo);
+  _addWheel(g, 0.38, 0.34,  1.12,  1.53, tire);  // FL
+  _addWheel(g, 0.38, 0.34, -1.12,  1.53, tire);  // FR
+  _addWheel(g, 0.40, 0.40,  1.12, -1.60, tire);  // RL
+  _addWheel(g, 0.40, 0.40, -1.12, -1.60, tire);  // RR
   return g;
 }
 
 // ── LMP1 Prototype ────────────────────────────────────────────────────────────
-function _createLMP3D(colorStr) {
-  const g    = new THREE.Group();
-  const b    = _mat(colorStr);
-  const dark = _mats(colorStr, 0.50);
-  const carb = _mat('#0a0a0a');
-  const tire = _mat('#1e1e1e');
-
-  _box(g, 2.10,0.38,4.80, b,    0,0.30,  0);    // wide flat body
-  _box(g, 0.80,0.22,1.40, dark, 0,0.22,  2.60); // long nose
-  _box(g, 0.95,0.42,1.40, carb, 0,0.72, -0.15); // enclosed canopy lower
-  _box(g, 0.82,0.24,1.20, carb, 0,0.98, -0.15); // canopy dome
-  _box(g, 0.72,0.32,1.50, b,    1.02,0.38, 1.40); // front fender R
-  _box(g, 0.72,0.32,1.50, b,   -1.02,0.38, 1.40); // front fender L
-  _box(g, 0.76,0.36,1.60, b,    1.04,0.38,-1.55); // rear fender R
-  _box(g, 0.76,0.36,1.60, b,   -1.04,0.38,-1.55); // rear fender L
-  _box(g, 0.05,0.75,1.80, dark, 0,0.72,-1.40);  // shark fin
-  _box(g, 2.20,0.06,0.40, dark, 0,0.12, 2.92);  // front splitter
-  _box(g, 1.90,0.08,0.55, dark, 0,0.18,-2.65);  // rear diffuser
-  // Wheels under fenders, still physically present
-  _wheel(g, 0.38,0.34,  1.10,0.38, 1.52, tire);
-  _wheel(g, 0.38,0.34, -1.10,0.38, 1.52, tire);
-  _wheel(g, 0.40,0.40,  1.10,0.40,-1.58, tire);
-  _wheel(g, 0.40,0.40, -1.10,0.40,-1.58, tire);
+function _buildLMP(colorStr) {
+  const g = new THREE.Group();
+  const b = _mat(colorStr), d = _darkMat(colorStr), carb = _mat('#080808'), tire = _mat('#1a1a1a');
+  _addBox(g, 2.08, 0.36, 4.75, b,    0,   0.28,  0);       // wide flat body
+  _addBox(g, 0.78, 0.20, 1.35, d,    0,   0.20,  2.58);    // long nose
+  _addBox(g, 0.92, 0.40, 1.38, carb, 0,   0.70, -0.13);    // lower canopy
+  _addBox(g, 0.80, 0.22, 1.18, carb, 0,   0.95, -0.13);    // canopy dome
+  _addBox(g, 0.70, 0.30, 1.48, b,    1.01,0.36,  1.38);    // front fender R
+  _addBox(g, 0.70, 0.30, 1.48, b,   -1.01,0.36,  1.38);    // front fender L
+  _addBox(g, 0.74, 0.34, 1.58, b,    1.03,0.36, -1.52);    // rear fender R
+  _addBox(g, 0.74, 0.34, 1.58, b,   -1.03,0.36, -1.52);    // rear fender L
+  _addBox(g, 0.05, 0.72, 1.76, d,    0,   0.70, -1.38);    // shark fin
+  _addBox(g, 2.18, 0.06, 0.38, d,    0,   0.11,  2.88);    // front splitter
+  _addBox(g, 1.88, 0.08, 0.52, d,    0,   0.16, -2.62);    // rear diffuser
+  _addWheel(g, 0.38, 0.34,  1.10,  1.50, tire);
+  _addWheel(g, 0.38, 0.34, -1.10,  1.50, tire);
+  _addWheel(g, 0.40, 0.40,  1.10, -1.56, tire);
+  _addWheel(g, 0.40, 0.40, -1.10, -1.56, tire);
   return g;
 }
 
 // ── NASCAR Stock Car ──────────────────────────────────────────────────────────
-function _createNASCAR3D(colorStr) {
-  const g    = new THREE.Group();
-  const b    = _mat(colorStr);
-  const dark = _mats(colorStr, 0.52);
-  const carb = _mat('#111111');
-  const tire = _mat('#1e1e1e');
-  const wh   = _mat('#ffffff');
-
-  _box(g, 2.18,0.65,4.85, b,    0,0.47,  0);    // wide body
-  _box(g, 1.75,0.60,2.70, b,    0,1.12, -0.22); // closed roof/cabin
-  _box(g, 1.60,0.04,0.85, carb, 0,1.22,  1.02, -0.52); // windshield angled
-  _box(g, 1.60,0.04,0.70, carb, 0,1.18, -1.55,  0.45); // rear glass angled
-  _box(g, 1.88,0.28,0.10, dark, 0,0.98, -2.45); // rear spoiler
-  _box(g, 2.12,0.35,0.20, dark, 0,0.35,  2.43); // front bumper
-  _box(g, 2.12,0.35,0.20, dark, 0,0.35, -2.43); // rear bumper
-  // Number plate on side
-  _box(g, 0.02,0.50,0.75, wh,   1.10,0.62,  0);
-  _box(g, 0.02,0.50,0.75, wh,  -1.10,0.62,  0);
-  // Wheels — wider than F1
-  _wheel(g, 0.40,0.38,  1.12,0.40, 1.62, tire);
-  _wheel(g, 0.40,0.38, -1.12,0.40, 1.62, tire);
-  _wheel(g, 0.42,0.40,  1.12,0.42,-1.72, tire);
-  _wheel(g, 0.42,0.40, -1.12,0.42,-1.72, tire);
+function _buildNASCAR(colorStr) {
+  const g = new THREE.Group();
+  const b = _mat(colorStr), d = _darkMat(colorStr), carb = _mat('#111111'), tire = _mat('#1a1a1a');
+  _addBox(g, 2.16, 0.62, 4.82, b,    0,   0.46,  0);       // wide body
+  _addBox(g, 1.72, 0.58, 2.68, b,    0,   1.10, -0.20);    // closed roof/cabin
+  _addBox(g, 1.58, 0.04, 0.82, carb, 0,   1.20,  1.00, -0.50);  // windshield
+  _addBox(g, 1.58, 0.04, 0.68, carb, 0,   1.16, -1.52,  0.42);  // rear glass
+  _addBox(g, 1.86, 0.26, 0.10, d,    0,   0.96, -2.42);    // rear spoiler
+  _addBox(g, 2.10, 0.32, 0.18, d,    0,   0.32,  2.40);    // front bumper
+  _addBox(g, 2.10, 0.32, 0.18, d,    0,   0.32, -2.40);    // rear bumper
+  _addBox(g, 0.02, 0.48, 0.72, _mat('#ffffff'),  1.10, 0.60,  0);  // number R
+  _addBox(g, 0.02, 0.48, 0.72, _mat('#ffffff'), -1.10, 0.60,  0);  // number L
+  _addWheel(g, 0.40, 0.38,  1.11,  1.60, tire);
+  _addWheel(g, 0.40, 0.38, -1.11,  1.60, tire);
+  _addWheel(g, 0.42, 0.40,  1.11, -1.70, tire);
+  _addWheel(g, 0.42, 0.40, -1.11, -1.70, tire);
   return g;
 }
 
-// ── Motorbike ─────────────────────────────────────────────────────────────────
-// BUG FIX #5: completely different shape — narrow, only 2 wheels, visible rider
-function _createMoto3D(colorStr) {
+// ── Motorbike — narrow, 2 wheels, seated rider ────────────────────────────────
+function _buildMoto(colorStr) {
   const g    = new THREE.Group();
   const b    = _mat(colorStr);
-  const dark = _mats(colorStr, 0.52);
+  const d    = _darkMat(colorStr);
   const carb = _mat('#101010');
-  const tire = _mat('#1a1a1a');
-  const suit = _mat('#1c1c2a');  // rider suit
-  const helm = _mat(colorStr);  // helmet matches livery
+  const tire = _mat('#191919');
+  const suit = _mat('#1a1a28');
+  const helm = _mat(colorStr);
 
-  // ── TWO wheels only — narrow (0.22m thick) ─────────────────────────────
-  _wheel(g, 0.32,0.22,  0,0.32, 1.55, tire); // front wheel
-  _wheel(g, 0.35,0.24,  0,0.35,-1.30, tire); // rear wheel
+  // Wheels (radius, thickness, x, z)
+  _addWheel(g, 0.30, 0.20,  0,  0.85, tire);   // front — r=0.30 so bottom at y=0 ✓
+  _addWheel(g, 0.32, 0.22,  0, -0.82, tire);   // rear  — r=0.32
 
-  // Front fork
-  _box(g, 0.06,0.55,0.08, carb,  0.15,0.60,1.42);
-  _box(g, 0.06,0.55,0.08, carb, -0.15,0.60,1.42);
+  // Front fork legs
+  _addBox(g, 0.05, 0.42, 0.06, carb,  0.12, 0.48,  0.72);
+  _addBox(g, 0.05, 0.42, 0.06, carb, -0.12, 0.48,  0.72);
 
-  // Main fairing/body — NARROW
-  _box(g, 0.46,0.55,2.25, b,    0,0.78, 0.08);
+  // Swing arm
+  _addBox(g, 0.05, 0.05, 0.40, carb, 0, 0.30, -0.60);
+
+  // Body — narrow (0.44 m wide)
+  _addBox(g, 0.44, 0.52, 2.10, b,    0, 0.76,  0.05);
   // Front cowl
-  _box(g, 0.42,0.65,0.55, b,    0,0.95, 1.38);
-  // Tail section
-  _box(g, 0.36,0.22,0.82, dark, 0,0.85,-0.90);
+  _addBox(g, 0.40, 0.62, 0.34, b,    0, 0.88,  0.72);
+  // Fuel tank
+  _addBox(g, 0.34, 0.24, 0.48, d,    0, 1.02,  0.16);
+  // Tail
+  _addBox(g, 0.30, 0.20, 0.50, d,    0, 0.86, -0.60);
 
-  // ── Rider ──────────────────────────────────────────────────────────────
-  // Lower body (legs)
-  _box(g, 0.52,0.38,0.88, suit, 0,1.20, 0.02);
-  // Upper body (torso, leaning forward)
-  _box(g, 0.50,0.65,0.65, suit, 0,1.73, 0.25);
-  // Arms
-  _box(g, 0.16,0.14,0.55, suit,  0.30,1.68, 0.90);
-  _box(g, 0.16,0.14,0.55, suit, -0.30,1.68, 0.90);
+  // ── Rider ──────────────────────────────────────────────────────────────────
+  // Legs (crouched low)
+  _addBox(g, 0.48, 0.32, 0.82, suit, 0, 1.18,  0.04);
+  // Upper body (leaning forward over tank)
+  _addBox(g, 0.44, 0.44, 0.60, suit, 0, 1.55,  0.24);
+  // Arms reaching forward to bars
+  _addBox(g, 0.14, 0.12, 0.48, suit,  0.26, 1.50,  0.62);
+  _addBox(g, 0.14, 0.12, 0.48, suit, -0.26, 1.50,  0.62);
   // Helmet
-  const helmMesh = new THREE.Mesh(new THREE.SphereGeometry(0.26,10,8), helm);
-  helmMesh.position.set(0, 2.18, 0.22);
+  const helmMesh = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 8), helm);
+  helmMesh.position.set(0, 1.88, 0.20);
   g.add(helmMesh);
   // Visor
-  _box(g, 0.24,0.12,0.08, _mat('#4a8aff'), 0,2.14,0.47);
+  _addBox(g, 0.22, 0.10, 0.06, _mat('#3a7acc'), 0, 1.84, 0.43);
 
   return g;
 }
 
-// ── Mesh dispatcher (BUG FIX #5) ─────────────────────────────────────────────
-function _createMeshForType(vehicleType, colorStr) {
-  switch (vehicleType) {
-    case 'moto':   return _createMoto3D(colorStr);
-    case 'nascar': return _createNASCAR3D(colorStr);
-    case 'f1v2':   return _createLMP3D(colorStr);
-    default:       return _createF1_3D(colorStr);
+// ── Vehicle dispatcher ────────────────────────────────────────────────────────
+function _buildVehicle(type, colorStr) {
+  switch (type) {
+    case 'moto':   return _buildMoto(colorStr);
+    case 'nascar': return _buildNASCAR(colorStr);
+    case 'f1v2':   return _buildLMP(colorStr);
+    default:       return _buildF1(colorStr);
   }
 }
 
@@ -344,15 +330,13 @@ function initCars3D() {
   _aiMeshes3D.length = 0;
 
   if (player && typeof carConfig !== 'undefined') {
-    // BUG FIX #5: use carConfig.vehicleType
-    _playerMesh3D = _createMeshForType(carConfig.vehicleType || 'f1', carConfig.color || '#ff0000');
+    _playerMesh3D = _buildVehicle(carConfig.vehicleType || 'f1', carConfig.color || '#cc0000');
     _scene.add(_playerMesh3D);
   }
 
   if (typeof aiCars !== 'undefined') {
     for (const ai of aiCars) {
-      // BUG FIX #5: use ai.vehicleType
-      const m = _createMeshForType(ai.vehicleType || 'f1', ai.color || '#0033cc');
+      const m = _buildVehicle(ai.vehicleType || 'f1', ai.color || '#0033cc');
       _scene.add(m);
       _aiMeshes3D.push(m);
     }
@@ -362,11 +346,13 @@ function initCars3D() {
 function _placeMesh(mesh, z, x, steer) {
   if (!mesh || !trackPath3D.length) return;
   const w = trackToWorld3D(z, x);
-  // BUG FIX #3: wheels sit at y=0 in group → place group at road surface (w.y + 0.0)
-  // Road surface Y = 0.02; add tiny offset to avoid z-fighting
-  mesh.position.set(w.x, w.y + 0.01, w.z);
-  mesh.rotation.y = -Math.atan2(w.fwdX, w.fwdZ);
-  mesh.rotation.z = -(steer || 0) * 0.18;
+  // BUG FIX E: group at road surface (YR=0.010). Wheel bottom in group = 0 → touches road.
+  mesh.position.set(w.x, w.y + YR, w.z);
+  // BUG FIX D: +atan2, not −atan2. Negative sign was making car face backwards.
+  // Three.js rotation.y=θ maps local+Z to world(sin(θ),0,cos(θ)).
+  // For fwdX=sin(θ), fwdZ=cos(θ): θ = atan2(fwdX, fwdZ) ✓
+  mesh.rotation.y = Math.atan2(w.fwdX, w.fwdZ);
+  mesh.rotation.z = -(steer || 0) * 0.16;
 }
 
 function updateCars3D() {
@@ -385,15 +371,19 @@ function initItemOrbs3D() {
   _orbMeshes3D.length = 0;
   if (typeof _itemRespawnMap === 'undefined' || typeof ITEM_DEFS === 'undefined') return;
   for (let i = 0; i < TRACK_SEGMENTS; i++) {
-    const id  = _itemRespawnMap[i];
+    const id = _itemRespawnMap[i];
     if (!id || !ITEM_DEFS[id]) continue;
-    const col = new THREE.Color(ITEM_DEFS[id].color);
-    const mat = new THREE.MeshLambertMaterial({ color: col, emissive: col, emissiveIntensity: 0.6 });
-    const m   = new THREE.Mesh(new THREE.SphereGeometry(0.60, 10, 7), mat);
-    const wp  = trackToWorld3D(i + 0.5, 0);
-    m.position.set(wp.x, wp.y + 1.4, wp.z);
-    _scene.add(m);
-    _orbMeshes3D.push({ mesh: m, segIdx: i });
+    const def = ITEM_DEFS[id];
+    const col = new THREE.Color(def.color);
+    // BUG FIX F: larger (0.75m), brighter emissive, higher above road (1.8m)
+    const mat = new THREE.MeshLambertMaterial({
+      color: col, emissive: col, emissiveIntensity: 0.85,
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.75, 12, 8), mat);
+    const wp   = trackToWorld3D(i + 0.5, 0);
+    mesh.position.set(wp.x, wp.y + 1.80, wp.z);
+    _scene.add(mesh);
+    _orbMeshes3D.push({ mesh, segIdx: i, baseY: wp.y });
   }
 }
 
@@ -403,14 +393,13 @@ function updateItemOrbs3D() {
     const seg = segments[o.segIdx];
     o.mesh.visible = !!(seg && seg.item);
     if (o.mesh.visible) {
-      o.mesh.rotation.y = t * 1.9;
-      const baseY = (trackPath3D[o.segIdx] || {y:0}).y;
-      o.mesh.position.y = baseY + 1.4 + Math.sin(t * 2.6 + o.segIdx * 0.7) * 0.20;
+      o.mesh.rotation.y = t * 2.0;
+      o.mesh.position.y = o.baseY + 1.80 + Math.sin(t * 2.8 + o.segIdx * 0.6) * 0.22;
     }
   }
 }
 
-// ── Road hazard objects ───────────────────────────────────────────────────────
+// ── Road-hazard objects (rocks, bricks) ───────────────────────────────────────
 function initHazards3D() {
   _hazMeshes3D.forEach(m => _scene.remove(m));
   _hazMeshes3D.length = 0;
@@ -418,61 +407,57 @@ function initHazards3D() {
     const seg = segments[i];
     const hz  = seg.rockHazard || seg.brickHazard;
     if (!hz) continue;
-    const isB  = !!seg.brickHazard;
-    const col  = isB ? 0x7a7a7a : 0x7a6a55;
-    const sx   = isB ? 1.10 : 0.88;
-    const sy   = isB ? 0.88 : 0.70;
-    const mat  = new THREE.MeshLambertMaterial({ color: col });
-    const geo  = new THREE.BoxGeometry(sx, sy, isB ? 0.95 : 0.80);
-    function placeHz(side) {
+    const isB = !!seg.brickHazard;
+    const sx  = isB ? 1.1 : 0.88,  sy = isB ? 0.88 : 0.70;
+    const mat = _mat(isB ? '#7a7a7a' : '#7a6a55');
+    const geo = new THREE.BoxGeometry(sx, sy, isB ? 0.92 : 0.78);
+    function place(side) {
       const wp = trackToWorld3D(i + 0.5, side * 0.80);
       const m  = new THREE.Mesh(geo, mat);
       m.position.set(wp.x, wp.y + sy * 0.5, wp.z);
-      m.rotation.y = -Math.atan2(wp.fwdX, wp.fwdZ);
+      m.rotation.y = Math.atan2(wp.fwdX, wp.fwdZ);
       _scene.add(m); _hazMeshes3D.push(m);
     }
-    if (hz === 'left'  || hz === 'both') placeHz(-1);
-    if (hz === 'right' || hz === 'both') placeHz( 1);
+    if (hz === 'left'  || hz === 'both') place(-1);
+    if (hz === 'right' || hz === 'both') place( 1);
   }
 }
 
 // ── Camera ────────────────────────────────────────────────────────────────────
-function _computeCamTargets() {
+function _computeCam() {
   if (!player || !trackPath3D.length) return;
-  const is1st = typeof viewMode !== 'undefined' && viewMode === '1st';
-  if (is1st) {
-    const eye = trackToWorld3D(player.z + 0.3, player.x);
-    _camTarget.set(eye.x, eye.y + 1.55, eye.z);
-    const fwd = trackToWorld3D(player.z + 7.0, player.x * 0.8);
-    _camLook.set(fwd.x, fwd.y + 1.30, fwd.z);
+  const is1 = typeof viewMode !== 'undefined' && viewMode === '1st';
+  if (is1) {
+    const e = trackToWorld3D(player.z + 0.3, player.x);
+    _camTarget.set(e.x, e.y + 1.55, e.z);
+    const f = trackToWorld3D(player.z + 7.0, player.x * 0.8);
+    _camLook.set(f.x, f.y + 1.30, f.z);
   } else {
-    const back = 11.0 / SEG_LEN_3D;
-    const bp   = trackToWorld3D(player.z - back, player.x * 0.32);
-    _camTarget.set(bp.x, bp.y + 4.5, bp.z);
-    const fp   = trackToWorld3D(player.z + 5.0, player.x);
+    const back = 11 / SEG_LEN_3D;
+    const bp = trackToWorld3D(player.z - back, player.x * 0.30);
+    _camTarget.set(bp.x, bp.y + 4.6, bp.z);
+    const fp = trackToWorld3D(player.z + 5, player.x);
     _camLook.set(fp.x, fp.y + 1.4, fp.z);
   }
 }
 
 function updateCamera3D() {
   if (!_cam || !player || !trackPath3D.length) return;
-  _computeCamTargets();
-  // BUG FIX #4: smooth lerp only after initial snap
+  _computeCam();
   _cam.position.lerp(_camTarget, 0.12);
   _cam.lookAt(_camLook);
 }
 
-// ── Sky / lighting ────────────────────────────────────────────────────────────
+// ── Sky + lighting ────────────────────────────────────────────────────────────
 function updateSky3D() {
   if (!_scene || !currentTrackDef) return;
   const top = new THREE.Color(currentTrackDef.skyTop || '#1a3a6a');
   const bot = new THREE.Color(currentTrackDef.skyBot || '#4a7ab8');
   _scene.background = top.clone().lerp(bot, 0.55);
-  // Adjust ambient for night (dark sky = less ambient)
   if (_amb) {
     const lum = top.r * 0.3 + top.g * 0.59 + top.b * 0.11;
-    _amb.intensity = 0.50 + Math.max(0, lum) * 0.85;
-    if (_sun) _sun.intensity = 0.70 + Math.max(0, lum) * 0.55;
+    _amb.intensity = 0.45 + Math.max(0, lum) * 0.90;
+    if (_sun) _sun.intensity = 0.65 + Math.max(0, lum) * 0.60;
   }
 }
 
@@ -491,16 +476,17 @@ function init3DRenderer(canvas3D, W, H) {
   _sun = new THREE.DirectionalLight(0xffffff, 0.80);
   _sun.position.set(600, 900, 200);
   _scene.add(_sun);
-
-  // Gentle fill light from the opposite side
-  const fill = new THREE.DirectionalLight(0xaabbff, 0.25);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.22);
   fill.position.set(-400, 300, -300);
   _scene.add(fill);
+
+  // BUG FIX G: gentle fog gives depth cue and hides the open track end
+  _scene.fog = new THREE.FogExp2(0x8ab0d0, 0.0006);
 
   _camReady = false;
 }
 
-// ── Rebuild scene (called from startRace after buildTrack + initPlayer + initAI)
+// ── Rebuild — call after buildTrack() + initPlayer() + initAI() ──────────────
 function rebuild3DScene() {
   if (!_thr) return;
   build3DPath();
@@ -510,11 +496,10 @@ function rebuild3DScene() {
   initItemOrbs3D();
   initHazards3D();
   updateSky3D();
-
-  // BUG FIX #4: Snap camera to correct start position — no lerp jitter on first frame
+  // Snap camera immediately so first frame looks correct (no lerp stutter)
   _camReady = false;
   if (player && trackPath3D.length && _cam) {
-    _computeCamTargets();
+    _computeCam();
     _cam.position.copy(_camTarget);
     _cam.lookAt(_camLook);
     _camReady = true;
@@ -527,11 +512,10 @@ function render3D() {
   updateSky3D();
   updateCars3D();
   updateItemOrbs3D();
-  // BUG FIX #4: only lerp camera after initial snap
   if (_camReady) {
     updateCamera3D();
   } else if (player && trackPath3D.length) {
-    _computeCamTargets();
+    _computeCam();
     _cam.position.copy(_camTarget);
     _cam.lookAt(_camLook);
     _camReady = true;
