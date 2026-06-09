@@ -2,9 +2,11 @@
 //  MAIN GAME LOOP + STATE MACHINE
 // ─────────────────────────────────────────────
 
-const canvas = document.getElementById('gameCanvas');
-const ctx    = canvas.getContext('2d');
+const canvas   = document.getElementById('gameCanvas');
+const ctx      = canvas.getContext('2d');
+const canvas3D = document.getElementById('three-canvas');
 let W = 0, H = 0;
+let _3dReady = false;   // true once init3DRenderer has been called
 
 // ── Game State ────────────────────────────────────────────────────────────
 let STATE         = 'MENU';
@@ -57,6 +59,23 @@ function resize() {
   // Position canvas at visual viewport offset (accounts for visible address bar).
   canvas.style.left   = ox + 'px';
   canvas.style.top    = oy + 'px';
+
+  // 3D canvas: mirror dimensions and position, initialize on first call
+  if (canvas3D) {
+    canvas3D.width  = nw;
+    canvas3D.height = nh;
+    canvas3D.style.width  = nw + 'px';
+    canvas3D.style.height = nh + 'px';
+    canvas3D.style.left   = ox + 'px';
+    canvas3D.style.top    = oy + 'px';
+
+    if (!_3dReady && typeof THREE !== 'undefined' && typeof init3DRenderer === 'function') {
+      init3DRenderer(canvas3D, nw, nh);
+      _3dReady = true;
+    } else if (_3dReady && typeof resize3DRenderer === 'function') {
+      resize3DRenderer(nw, nh);
+    }
+  }
 }
 
 // ── Touch/mouse coordinate helper ────────────────────────────────────────
@@ -123,6 +142,8 @@ function startRace() {
   STATE    = 'COUNTDOWN';
   if (!audioCtx) initAudio();
   scheduleCountdownBeeps();
+  // Build 3D scene geometry now that track + cars are fully initialized
+  if (_3dReady && typeof rebuild3DScene === 'function') rebuild3DScene();
 }
 
 // ── Start multiplayer race ─────────────────────────────────────────────────
@@ -357,6 +378,10 @@ function update(dt) {
 
 // ── RENDER ─────────────────────────────────────────────────────────────────
 function render() {
+  // Show 3D canvas only during in-game states; menus use 2D canvas alone
+  const _show3D = _3dReady && ['COUNTDOWN', 'RACING', 'PAUSED', 'FINISH'].includes(STATE);
+  if (canvas3D) canvas3D.style.display = _show3D ? 'block' : 'none';
+
   ctx.clearRect(0, 0, W, H);
 
   switch (STATE) {
@@ -515,19 +540,24 @@ function _renderRaceScene() {
     }
   }
 
-  projectRoad(renderZ, ePX, W, H);
-  renderSkyAndBackground(W, H);
-  renderRoad(W, H);
-  renderItemOrbs(W, H);
-  renderAICars(W, H);
-  renderRoadHazards(W, H);
-
-  if (typeof renderWeatherOverlay === 'function') renderWeatherOverlay(W, H);
-
-  if (viewMode === VIEW_1ST) {
-    renderCockpit(W, H);
+  if (_3dReady && typeof render3D === 'function') {
+    // ── 3D path: Three.js renders world; 2D canvas is a transparent overlay ──
+    render3D();
+    // Only overlay effects on the transparent 2D canvas
+    if (typeof renderWeatherOverlay === 'function') renderWeatherOverlay(W, H);
+    if (viewMode === VIEW_1ST) renderCockpit(W, H);
+    // (3rd-person player car is the 3D mesh — no 2D sprite needed)
   } else {
-    renderPlayerCar(W, H);
+    // ── Fallback: original pseudo-3D scanline renderer ──────────────────────
+    projectRoad(renderZ, ePX, W, H);
+    renderSkyAndBackground(W, H);
+    renderRoad(W, H);
+    renderItemOrbs(W, H);
+    renderAICars(W, H);
+    renderRoadHazards(W, H);
+    if (typeof renderWeatherOverlay === 'function') renderWeatherOverlay(W, H);
+    if (viewMode === VIEW_1ST) renderCockpit(W, H);
+    else renderPlayerCar(W, H);
   }
 
   // Always restore segments and track colors after rendering
