@@ -1,0 +1,167 @@
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Courier New', Courier, monospace;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+/* ── Canvas ── */
+#gameCanvas {
+  position: fixed;
+  /* top/left/width/height are overridden by JS resize() to match visualViewport exactly.
+     These CSS values are only used before JS runs (first paint). */
+  top: 0; left: 0;
+  width: 100%;
+  /* 100dvh = dynamic viewport height, excludes browser chrome on modern mobile.
+     Falls back to 100vh on older browsers. */
+  height: 100vh;    /* fallback for older browsers */
+  height: 100dvh;   /* modern: excludes browser chrome; overrides 100vh if supported */
+  display: block;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+/* ── Orientation overlay ── */
+#orientationOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #fff;
+}
+#orientationOverlay .rotate-content { padding: 24px; }
+#orientationOverlay .rotate-icon {
+  font-size: clamp(56px, 15vw, 90px);
+  animation: spin 2s linear infinite;
+  display: block;
+  margin-bottom: 20px;
+  line-height: 1;
+}
+#orientationOverlay p {
+  font-size: clamp(16px, 4vw, 24px);
+  line-height: 1.7;
+}
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ── Mobile controls wrapper ── */
+#mobileControls {
+  display: none;                /* shown by JS on mobile landscape */
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* LEFT: steering buttons ─────────────────────────────── */
+#leftControls {
+  position: absolute;
+  /* env() accounts for iPhone home bar notch; fallback for older Android */
+  bottom: max(clamp(20px, 4vh, 44px), env(safe-area-inset-bottom, 0px) + 16px);
+  left:   max(clamp(16px, 3.5vw, 36px), env(safe-area-inset-left, 0px) + 12px);
+  display: flex;
+  gap: clamp(8px, 1.5vw, 16px);
+  pointer-events: all;
+  align-items: flex-end;
+}
+
+/* RIGHT: pedal buttons ───────────────────────────────── */
+#rightControls {
+  position: absolute;
+  bottom: max(clamp(20px, 4vh, 44px), env(safe-area-inset-bottom, 0px) + 16px);
+  right:  max(clamp(16px, 3.5vw, 36px), env(safe-area-inset-right, 0px) + 12px);
+  display: flex;
+  gap: clamp(6px, 1.2vw, 12px);
+  align-items: flex-end;
+  pointer-events: all;
+}
+
+/* TOP-RIGHT META: pause + view toggle ───────────────── */
+#metaControls {
+  position: absolute;
+  top:   max(clamp(14px, 2.5vh, 28px), env(safe-area-inset-top, 0px) + 10px);
+  right: max(clamp(16px, 3.5vw, 36px), env(safe-area-inset-right, 0px) + 12px);
+  display: flex;
+  gap: clamp(6px, 1vw, 12px);
+  pointer-events: all;
+  align-items: center;
+}
+
+/* ── Shared button base ── */
+.ctrl-btn {
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  font-weight: bold;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: all;
+  transition: transform 0.06s, background 0.08s;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.ctrl-btn:active { transform: scale(0.90); }
+
+/* ── D-pad buttons (◀ ▶) ── */
+.dpad {
+  width:  clamp(58px, 10vw, 82px);
+  height: clamp(58px, 10vw, 82px);
+  font-size: clamp(22px, 4vw, 34px);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.16);
+  border: 2px solid rgba(255,255,255,0.35);
+}
+.dpad:active { background: rgba(255,255,255,0.38); }
+
+/* ── Pedal buttons ── */
+.pedal {
+  width:  clamp(62px, 11vw, 86px);
+  height: clamp(62px, 11vw, 86px);
+  font-size: clamp(11px, 2vw, 15px);
+  border-radius: clamp(10px, 2vw, 16px);
+  letter-spacing: 0.03em;
+}
+.brake-btn {
+  background: rgba(200,30,30,0.50);
+  border: 2px solid rgba(255,80,80,0.65);
+  font-size: clamp(11px, 1.8vw, 14px);
+}
+.brake-btn:active { background: rgba(220,40,40,0.85); }
+.gas-btn {
+  background: rgba(30,170,30,0.50);
+  border: 2px solid rgba(60,255,60,0.65);
+  font-size: clamp(11px, 1.8vw, 14px);
+}
+.gas-btn:active { background: rgba(40,190,40,0.85); }
+.boost-btn {
+  font-size: clamp(26px, 5vw, 38px);
+  background: rgba(0,190,190,0.50);
+  border: 2px solid rgba(0,255,255,0.65);
+}
+.boost-btn:active { background: rgba(0,210,210,0.85); }
+
+/* ── Meta buttons (pause / view) ── */
+.meta-btn {
+  width:  clamp(42px, 7vw, 58px);
+  height: clamp(42px, 7vw, 58px);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.52);
+  border: 1.5px solid rgba(255,255,255,0.30);
+}
+.meta-btn:active { background: rgba(255,255,255,0.20); }
+
+.view-btn  { font-size: clamp(18px, 3.5vw, 26px); }
+.pause-btn { font-size: clamp(14px, 2.8vw, 20px); }

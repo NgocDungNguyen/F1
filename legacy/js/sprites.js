@@ -1,57 +1,8 @@
 // ─────────────────────────────────────────────
-//  SPRITES  –  vehicle rendering
+//  SPRITES  –  2D pixel-art vehicle designs
 // ─────────────────────────────────────────────
 
-// ── Pre-baked 3D-model vehicle sprites ─────────────────────────────────────
-// Each PNG is a single chase-cam render of the 3D vehicle model (see
-// scripts used to generate img/vehicles/), pre-tinted for every color used
-// by the player palette (CAR_COLORS) and AI_COLORS, tightly cropped and
-// transparent. Drawn bottom-center anchored like the old pixel-art grid so
-// call sites don't need to change. Falls back to the pixel-art drawing
-// below whenever an image isn't loaded/available, so a missing/slow asset
-// never breaks rendering.
-const VEHICLE_SPRITE_TYPES  = ['f1', 'f1v2', 'nascar', 'moto'];
-const VEHICLE_SPRITE_COLORS = ['#e8001c', '#ff6600', '#0033cc', '#ffcc00', '#ff44aa', '#dddddd',
-                                '#00aa44', '#cc0044', '#aa44ff', '#ff8800'];
-const _vehicleSpriteCache = {};
-(function _preloadVehicleSprites() {
-  for (const type of VEHICLE_SPRITE_TYPES) {
-    for (const color of VEHICLE_SPRITE_COLORS) {
-      const key = type + '_' + color.slice(1);
-      const img = new Image();
-      img.src = 'img/vehicles/' + key + '.png';
-      _vehicleSpriteCache[key] = img;
-    }
-  }
-})();
-
-// Returns true if it drew the pre-baked sprite; false means caller should
-// fall back to the pixel-art grid (image missing, not loaded yet, or an
-// unrecognised color not in the pre-baked palette).
-function _drawVehicleSprite3D(type, cx, cy, w, color) {
-  if (!color) return false;
-  const key = type + '_' + color.replace('#', '').toLowerCase();
-  const img = _vehicleSpriteCache[key];
-  if (!img || !img.complete || !img.naturalWidth) return false;
-  const h = w * (img.naturalHeight / img.naturalWidth);
-  ctx.drawImage(img, cx - w / 2, cy - h, w, h);
-  return true;
-}
-
-// Height/width ratio for a vehicle preview — used by layout code (e.g. the
-// customize screen) that needs to fit a sprite within both a max width AND
-// a max height. The 3D sprites vary a lot in aspect (moto is much taller
-// and narrower than the old pixel art), so callers can't assume width-only
-// sizing keeps everything on-screen.
-const _PIXEL_ART_ASPECT = { f1: 16/24, f1v2: 10/24, nascar: 13/24, moto: 15/12 };
-function _vehicleAspect(type, color) {
-  const key = type + '_' + (color || '').replace('#', '').toLowerCase();
-  const img = _vehicleSpriteCache[key];
-  if (img && img.complete && img.naturalWidth) return img.naturalHeight / img.naturalWidth;
-  return _PIXEL_ART_ASPECT[type] || 0.6;
-}
-
-// ── Pixel grid helper (fallback pixel-art path) ────────────────────────────
+// ── Pixel grid helper ─────────────────────────────────────────────────────
 // cx,cy = bottom-centre anchor; w = display width in pixels
 // map   = array of equal-length strings (same char count per row)
 // colorMap = { char: cssColor }   '.' and ' ' are transparent
@@ -76,7 +27,6 @@ function _drawPixelGrid(cx, cy, w, map, colorMap) {
 // 24 cols × 12 rows  (top row = front/nose, bottom = rear wing)
 function drawF1Sprite(cx, cy, w, color, decal) {
   if (w < 6) return;
-  if (_drawVehicleSprite3D('f1', cx, cy, w, color)) return;
   const cm = {
     B: color,
     D: _darken(color, 0.65),
@@ -116,7 +66,6 @@ function drawF1Sprite(cx, cy, w, color, decal) {
 // 24 cols × 10 rows  (h/w ≈ 0.42 — wide closed-body prototype)
 function drawF1V2Sprite(cx, cy, w, color, decal) {
   if (w < 6) return;
-  if (_drawVehicleSprite3D('f1v2', cx, cy, w, color)) return;
   const cm = {
     B: color,
     F: _darken(color, 0.55),
@@ -149,7 +98,6 @@ function drawF1V2Sprite(cx, cy, w, color, decal) {
 // 24 cols × 13 rows  (h/w ≈ 0.54 — wide boxy stock car)
 function drawNASCARSprite(cx, cy, w, color, decal) {
   if (w < 6) return;
-  if (_drawVehicleSprite3D('nascar', cx, cy, w, color)) return;
   const cm = {
     B: color,
     D: _darken(color, 0.75),
@@ -185,7 +133,6 @@ function drawNASCARSprite(cx, cy, w, color, decal) {
 // 12 cols × 15 rows  (h/w = 1.25 — narrow and elongated)
 function drawMotoSprite(cx, cy, w, color, decal) {
   if (w < 5) return;
-  if (_drawVehicleSprite3D('moto', cx, cy, w, color)) return;
   const cm = {
     B: color,
     C: '#1a1a1a',

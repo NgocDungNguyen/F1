@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>F1 Racer</title>
   <link rel="stylesheet" href="css/style.css">
+  <!-- Three.js — must load before renderer3d.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
   <script>
     // Request fullscreen to dismiss browser chrome (address bar, nav bar).
     // Called on first user gesture and when starting a race.
@@ -22,6 +24,9 @@
   </script>
 </head>
 <body>
+  <!-- WebGL canvas for 3D world (below the 2D overlay) -->
+  <canvas id="three-canvas" style="position:absolute;top:0;left:0;display:none;"></canvas>
+  <!-- 2D overlay canvas: HUD, menus, weather, cockpit -->
   <canvas id="gameCanvas"></canvas>
 
   <!-- Portrait-mode lock overlay -->
@@ -79,6 +84,7 @@
   <script src="js/input.js"></script>
   <script src="js/tracks.js"></script>
   <script src="js/renderer.js"></script>
+  <script src="js/renderer3d.js"></script>
   <script src="js/sprites.js"></script>
   <script src="js/cockpit.js"></script>
   <script src="js/player.js"></script>

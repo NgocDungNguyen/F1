@@ -95,7 +95,7 @@ AI cars always render as F1 Classic (`drawF1Sprite`). AI count is set by difficu
 
 ## Tracks (6 circuits)
 
-Track definitions in `TRACK_DEFS` in `tracks.js`. Each track has sections (`{len, curve, item?, fogZone?, roadWidthMult?, oilSlick?, heatZone?, slipstreamZone?, surfaceGrip?, rockHazard?, riverCrossing?}`) tiled to fill `TRACK_SEGMENTS = 900` segments per lap — a single path per track, no forks or alternate routes.
+Track definitions in `TRACK_DEFS` in `tracks.js`. Each track has sections (`{len, curve, shortcut?, item?, fogZone?, roadWidthMult?, oilSlick?, heatZone?, slipstreamZone?, surfaceGrip?, rockHazard?, riverCrossing?}`) tiled to fill `TRACK_SEGMENTS = 900` segments per lap.
 
 | ID | Name | Subtitle | Unique Mechanic | Max Curve | Item Drop |
 |----|------|----------|----------------|-----------|-----------|
@@ -147,6 +147,9 @@ Angle is computed as `Σ(len × curve) × 0.045 rad`. Highest single-direction a
 - `roadWidthMult: 0.65–0.72` watchtower squeezes.
 - Three sections carry `brickHazard: 'left' | 'right' | 'both'` — large stone wall-brick blocks drawn on-road; hitting one (|x| > 0.68) cuts speed by ~22%.
 - Final 70-segment straight is replaced by a **360°+ dragon spiral** (curve −3.5, 44 segs ≈ 400°) before the last watchtower.
+
+### Shortcuts / alternate routes
+Every track has 2–3 shortcut sections (35–45 segments each). These are marked `shortcut: true` and render as brown/gravel surface with yellow dashed edges and double-chevron arrows at the entry point. They are wider (1.12×) and free from rumble strips. Items are often placed on shortcut bypasses to reward taking the alternate route. All items respawn at the start of each new lap via `respawnTrackItems()`.
 
 ### Background renderers (`renderer.js`)
 - `_drawBuildings` — Monaco city skyline with lit windows (parallax shift on camera lean)
@@ -268,12 +271,16 @@ Fully procedural Web Audio API — no audio files.
 
 ### Road scanline (`renderRoad`)
 For each screen row bottom→horizon, back-projects to depth `z`, looks up segment, draws 1-pixel strips:
-- Grass → left rumble → road surface (or river) → centre markings → right rumble
+- Grass → left rumble → road surface (or shortcut/river) → centre markings → right rumble
 - **`roadWidthMult`**: `effectiveHalf = roadHalfPx × seg.roadWidthMult` on narrow sections (Great Wall)
+- Shortcut zones: 1.12× wider, no rumble, yellow dotted edges
 - Finish line: checkered black/white pattern
 
 ### Item orbs (`renderItemOrbs`)
 Called between `renderRoad` and `renderAICars`. Loops `_projected[n]` for all visible segments and draws spinning colored diamond + glow halo for each segment with a non-null `item`.
+
+### Shortcut markers
+Yellow double-chevron arrows drawn at the first segment of each shortcut zone to signal entry point.
 
 ### Atmospheric overlays (`renderSkyAndBackground`)
 - **Monaco tunnel** (`fogZone` + `buildings` track): dark screen overlay + orange side-strip lights

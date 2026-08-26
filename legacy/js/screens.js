@@ -530,19 +530,10 @@ function renderCarCustomize(W, H, mx, my, clicked, vehicleType) {
   const topY   = H * 0.11;
   const availH = BTN_Y - topY - _p(10);
 
-  // Vehicle sprite (dispatch to correct draw fn) — constrained by both max
-  // width and max height since sprite aspect ratio varies a lot by vehicle
-  // (moto's 3D sprite is much taller/narrower than the old pixel art was).
-  let carSz = Math.min(splitX * 0.52, availH * 0.38, _p(90));
-  const carAspect = (typeof _vehicleAspect === 'function') ? _vehicleAspect(vehType, carConfig.color) : 0.6;
-  const carMaxH   = availH * 0.55;
-  if (carSz * carAspect > carMaxH) carSz = carMaxH / carAspect;
-  const carH   = carSz * carAspect;
+  // Vehicle sprite (dispatch to correct draw fn)
+  const carSz = Math.min(splitX * 0.52, availH * 0.38, _p(90));
   const carCX  = splitX / 2;
-  // Anchor (bottom-center) must sit far enough below topY that a tall/narrow
-  // sprite's top edge doesn't clip above the preview area — the old fixed
-  // topY + availH*0.32 only worked for the old wide/short pixel-art aspect.
-  const carCY  = Math.max(topY + availH * 0.32, topY + carH + _p(6));
+  const carCY  = topY + availH * 0.32;
   _drawVehiclePreview(vehType, carCX, carCY, carSz, carConfig.color, carConfig.decal);
 
   // Cockpit nose preview — only for F1 Classic (open cockpit)

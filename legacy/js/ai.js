@@ -30,16 +30,11 @@ function initAI() {
   const aiCount = diffDef ? diffDef.aiCount : AI_COUNT;
   const startZ  = player ? player.z : 8;
 
-  // Per-difficulty skill tuning (defaults reproduce pre-tuning behavior)
-  const speedMult      = diffDef && diffDef.aiSpeedMult      != null ? diffDef.aiSpeedMult      : 1.0;
-  const brakeConfidence = diffDef && diffDef.aiBrakeConfidence != null ? diffDef.aiBrakeConfidence : 1.0;
-  const lookAhead       = diffDef && diffDef.aiLookAhead       != null ? diffDef.aiLookAhead       : 10;
-
   for (let i = 0; i < aiCount; i++) {
     aiCars.push({
       z:           (startZ + AI_GAPS[i % AI_GAPS.length]) % TRACK_SEGMENTS,
       x:           (i % 2 === 0 ? -0.28 : 0.28),
-      speed:       AI_MAX_SPEED * (0.78 + (i % 3) * 0.04) * speedMult,
+      speed:       AI_MAX_SPEED * (0.78 + (i % 3) * 0.04),
       color:       AI_COLORS[i % AI_COLORS.length],
       decal:       AI_DECALS[i % AI_DECALS.length],
       vehicleType: AI_VEHICLE_TYPES[Math.floor(Math.random() * AI_VEHICLE_TYPES.length)],
@@ -50,8 +45,6 @@ function initAI() {
       nitroBar:    0.15 + Math.random() * 0.25,
       boosting:    false,
       nitroLevel:  0,
-      // Skill tuning carried per-car so updateAI doesn't need to re-derive difficulty each frame
-      speedMult, brakeConfidence, lookAhead,
     });
   }
 }
@@ -73,11 +66,9 @@ function updateAI(dt) {
     const seg    = segments[segIdx];
     if (!seg) continue;
 
-    // Sample N segments ahead — AI brakes for corners before reaching them.
-    // Smarter difficulties look further ahead, braking earlier and more smoothly.
-    const lookAhead = ai.lookAhead || 10;
+    // Sample 10 segments ahead — AI brakes for corners before reaching them
     let maxAheadCurve = Math.abs(seg.curve);
-    for (let a = 1; a <= lookAhead; a++) {
+    for (let a = 1; a <= 10; a++) {
       const as = segments[(segIdx + a) % TRACK_SEGMENTS];
       if (as) maxAheadCurve = Math.max(maxAheadCurve, Math.abs(as.curve));
     }
@@ -96,14 +87,12 @@ function updateAI(dt) {
     else if (relGap > 80)  gapBonus = 0.93;   // comfortably ahead: ease off
 
     // ── Target speed from corner severity + gap bonus ─────────────────────
-    // brakeConfidence > 1.0 = carries more speed through corners ("smarter" driving line)
-    const brakeConfidence = ai.brakeConfidence || 1.0;
     let targetSpd;
-    if      (maxAheadCurve > 3.5) targetSpd = AI_MAX_SPEED * Math.min(1, AI_BRAKE_HAIRPIN * brakeConfidence);
-    else if (maxAheadCurve > 2.0) targetSpd = AI_MAX_SPEED * Math.min(1, (AI_BRAKE_MEDIUM  - maxAheadCurve * 0.025) * brakeConfidence);
-    else if (maxAheadCurve > 0.8) targetSpd = AI_MAX_SPEED * Math.min(1, (AI_BRAKE_GENTLE  - maxAheadCurve * 0.04) * brakeConfidence);
+    if      (maxAheadCurve > 3.5) targetSpd = AI_MAX_SPEED * AI_BRAKE_HAIRPIN;
+    else if (maxAheadCurve > 2.0) targetSpd = AI_MAX_SPEED * (AI_BRAKE_MEDIUM  - maxAheadCurve * 0.025);
+    else if (maxAheadCurve > 0.8) targetSpd = AI_MAX_SPEED * (AI_BRAKE_GENTLE  - maxAheadCurve * 0.04);
     else                          targetSpd = AI_MAX_SPEED;
-    targetSpd *= gapBonus * (ai.speedMult || 1.0);
+    targetSpd *= gapBonus;
 
     // ── Nitro: passive fill on straights ──────────────────────────────────
     if (!ai.boosting && !ai.crashing && maxAheadCurve < 1.2) {
@@ -164,18 +153,11 @@ function updateAI(dt) {
   }
 }
 
-// myLaps/myZ default to the global `player`/raceData.lap (single-player).
-// otherLaps/otherZ, when given, rank a second human (multiplayer) into the field too —
-// otherwise two human players racing the same AI field can land on the identical
-// position since neither ever gets compared against the other.
-function computePosition(myLaps, myZ, otherLaps, otherZ) {
-  if (myLaps === undefined) { myLaps = raceData.lap - 1; myZ = player.z; }
+function computePosition() {
+  const playerDone = raceData.lap - 1;
   let pos = 1;
   for (const ai of aiCars) {
-    if (ai.laps > myLaps || (ai.laps === myLaps && ai.z > myZ)) pos++;
-  }
-  if (otherLaps !== undefined) {
-    if (otherLaps > myLaps || (otherLaps === myLaps && otherZ > myZ)) pos++;
+    if (ai.laps > playerDone || (ai.laps === playerDone && ai.z > player.z)) pos++;
   }
   return pos;
 }

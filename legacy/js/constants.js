@@ -134,11 +134,6 @@ const DIFFICULTY_DEFS = {
     nightCycle: false,
     flyingObjects: false,
     weatherInterval: 0,
-    // Fewer rivals than hard/asian, so give them a bit more pace and corner
-    // confidence — otherwise 3 baseline-speed bots make easy/medium a free win.
-    aiSpeedMult:      1.08,
-    aiBrakeConfidence: 1.06,
-    aiLookAhead:      12,
   },
   medium: {
     name: 'MEDIUM',
@@ -149,9 +144,6 @@ const DIFFICULTY_DEFS = {
     nightCycle: true,
     flyingObjects: false,
     weatherInterval: 120,
-    aiSpeedMult:      1.12,
-    aiBrakeConfidence: 1.09,
-    aiLookAhead:      13,
   },
   hard: {
     name: 'HARD',
@@ -162,9 +154,6 @@ const DIFFICULTY_DEFS = {
     nightCycle: true,
     flyingObjects: false,
     weatherInterval: 60,
-    aiSpeedMult:      1.0,
-    aiBrakeConfidence: 1.0,
-    aiLookAhead:      10,
   },
   asian: {
     name: 'ASIAN',
@@ -175,9 +164,6 @@ const DIFFICULTY_DEFS = {
     nightCycle: true,
     flyingObjects: true,
     weatherInterval: 15,
-    aiSpeedMult:      1.0,
-    aiBrakeConfidence: 1.0,
-    aiLookAhead:      10,
   },
 };
 

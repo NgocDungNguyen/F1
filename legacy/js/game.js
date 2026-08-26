@@ -2,9 +2,11 @@
 //  MAIN GAME LOOP + STATE MACHINE
 // ─────────────────────────────────────────────
 
-const canvas = document.getElementById('gameCanvas');
-const ctx    = canvas.getContext('2d');
+const canvas   = document.getElementById('gameCanvas');
+const ctx      = canvas.getContext('2d');
+const canvas3D = document.getElementById('three-canvas');
 let W = 0, H = 0;
+let _3dReady = false;   // true once init3DRenderer has been called
 
 // ── Game State ────────────────────────────────────────────────────────────
 let STATE         = 'MENU';
@@ -57,6 +59,23 @@ function resize() {
   // Position canvas at visual viewport offset (accounts for visible address bar).
   canvas.style.left   = ox + 'px';
   canvas.style.top    = oy + 'px';
+
+  // 3D canvas: mirror dimensions and position, initialize on first call
+  if (canvas3D) {
+    canvas3D.width  = nw;
+    canvas3D.height = nh;
+    canvas3D.style.width  = nw + 'px';
+    canvas3D.style.height = nh + 'px';
+    canvas3D.style.left   = ox + 'px';
+    canvas3D.style.top    = oy + 'px';
+
+    if (!_3dReady && typeof THREE !== 'undefined' && typeof init3DRenderer === 'function') {
+      init3DRenderer(canvas3D, nw, nh);
+      _3dReady = true;
+    } else if (_3dReady && typeof resize3DRenderer === 'function') {
+      resize3DRenderer(nw, nh);
+    }
+  }
 }
 
 // ── Touch/mouse coordinate helper ────────────────────────────────────────
@@ -123,6 +142,8 @@ function startRace() {
   STATE    = 'COUNTDOWN';
   if (!audioCtx) initAudio();
   scheduleCountdownBeeps();
+  // Build 3D scene geometry now that track + cars are fully initialized
+  if (_3dReady && typeof rebuild3DScene === 'function') rebuild3DScene();
 }
 
 // ── Start multiplayer race ─────────────────────────────────────────────────
@@ -141,7 +162,7 @@ function startMultiplayerRace() {
   carConfig = savedCC;
   initWeather();
   lastCrashTime = -5;
-  raceData = { lap: 1, raceTime: 0, lapStartTime: 0, lapTimes: [], position: 1, p2Position: 1, countdownT: 0 };
+  raceData = { lap: 1, raceTime: 0, lapStartTime: 0, lapTimes: [], position: 1, countdownT: 0 };
   p2Lap = 1;
   p1Finished = false;
   p2Finished = false;
@@ -150,6 +171,8 @@ function startMultiplayerRace() {
   STATE = 'COUNTDOWN';
   if (!audioCtx) initAudio();
   scheduleCountdownBeeps();
+  // BUG FIX K: build 3D scene for multiplayer (was missing, left stale single-player geometry)
+  if (_3dReady && typeof rebuild3DScene === 'function') rebuild3DScene();
 }
 
 // ── Lap check for multiplayer (does not auto-set STATE = FINISH) ────────────
@@ -308,6 +331,7 @@ function update(dt) {
         if (!player.altRoute) checkCollisions(raceData.raceTime);
         const savedLap1 = raceData.lap;
         _checkLapMP(prevZ1, 'p1');
+        raceData.position = computePosition();
 
         // ── Player 2 ────────────────────────────────────────────────────────
         const prevZ2 = player2.z;
@@ -321,10 +345,7 @@ function update(dt) {
         _checkLapMP(prevZ2, 'p2');
         p2Lap = raceData.lap;
         raceData.lap = savedLap1;
-
-        // ── Positions — rank each human against the AI field AND each other ──
-        raceData.position   = computePosition(savedLap1 - 1, player1.z, p2Lap - 1, player2.z);
-        raceData.p2Position = computePosition(p2Lap - 1, player2.z, savedLap1 - 1, player1.z);
+        raceData.p2Position = computePosition();
 
         // ── Shared ──────────────────────────────────────────────────────────
         player = player1; carConfig = p1CarConfig;
@@ -359,6 +380,10 @@ function update(dt) {
 
 // ── RENDER ─────────────────────────────────────────────────────────────────
 function render() {
+  // Show 3D canvas only during in-game states; menus use 2D canvas alone
+  const _show3D = _3dReady && ['COUNTDOWN', 'RACING', 'PAUSED', 'FINISH'].includes(STATE);
+  if (canvas3D) canvas3D.style.display = _show3D ? 'block' : 'none';
+
   ctx.clearRect(0, 0, W, H);
 
   switch (STATE) {
@@ -517,19 +542,24 @@ function _renderRaceScene() {
     }
   }
 
-  projectRoad(renderZ, ePX, W, H);
-  renderSkyAndBackground(W, H);
-  renderRoad(W, H);
-  renderItemOrbs(W, H);
-  renderAICars(W, H);
-  renderRoadHazards(W, H);
-
-  if (typeof renderWeatherOverlay === 'function') renderWeatherOverlay(W, H);
-
-  if (viewMode === VIEW_1ST) {
-    renderCockpit(W, H);
+  if (_3dReady && typeof render3D === 'function') {
+    // ── 3D path: Three.js renders world; 2D canvas is a transparent overlay ──
+    render3D();
+    // Only overlay effects on the transparent 2D canvas
+    if (typeof renderWeatherOverlay === 'function') renderWeatherOverlay(W, H);
+    if (viewMode === VIEW_1ST) renderCockpit(W, H);
+    // (3rd-person player car is the 3D mesh — no 2D sprite needed)
   } else {
-    renderPlayerCar(W, H);
+    // ── Fallback: original pseudo-3D scanline renderer ──────────────────────
+    projectRoad(renderZ, ePX, W, H);
+    renderSkyAndBackground(W, H);
+    renderRoad(W, H);
+    renderItemOrbs(W, H);
+    renderAICars(W, H);
+    renderRoadHazards(W, H);
+    if (typeof renderWeatherOverlay === 'function') renderWeatherOverlay(W, H);
+    if (viewMode === VIEW_1ST) renderCockpit(W, H);
+    else renderPlayerCar(W, H);
   }
 
   // Always restore segments and track colors after rendering
@@ -551,18 +581,12 @@ function _renderRaceScene() {
 }
 
 // ── Race HUD ──────────────────────────────────────────────────────────────
-// `overrides` lets split-screen supply each player's own lap/position/view-key
-// instead of the shared raceData fields (which only ever hold player 1's values).
-function _renderRaceHUD(overrides) {
-  const lap         = (overrides && overrides.lap      !== undefined) ? overrides.lap      : raceData.lap;
-  const position    = (overrides && overrides.position !== undefined) ? overrides.position : raceData.position;
-  const viewKeyLabel = (overrides && overrides.viewKeyLabel) || 'V';
-
+function _renderRaceHUD() {
   renderHUD(W, H, {
     speed:         player ? player.speed        : 0,
-    lap,
+    lap:           raceData.lap,
     raceTime:      raceData.raceTime,
-    position,
+    position:      raceData.position,
     nitroBar:       player ? player.nitroBar       : 0,
     nitroLevel:     player ? player.nitroLevel     : 0,
     nitroTapWindow: player ? player.nitroTapWindow : false,
@@ -593,7 +617,7 @@ function _renderRaceHUD(overrides) {
   ctx.fillStyle    = viewMode === VIEW_1ST ? '#88ccff' : '#ffcc44';
   ctx.font         = 'bold 12px monospace';
   ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(viewMode === VIEW_1ST ? `🎥 1ST PERSON  [${viewKeyLabel}]` : `🎥 3RD PERSON  [${viewKeyLabel}]`, W/2, H*0.695+11);
+  ctx.fillText(viewMode === VIEW_1ST ? '🎥 1ST PERSON  [V]' : '🎥 3RD PERSON  [V]', W/2, H*0.695+11);
   ctx.restore();
 }
 
@@ -626,14 +650,7 @@ function _renderSplitScreen() {
     W = halfW;
 
     _renderRaceScene();
-    if (STATE === 'RACING') {
-      const isP2 = playerObj === player2;
-      _renderRaceHUD({
-        lap:          isP2 ? p2Lap : raceData.lap,
-        position:     isP2 ? raceData.p2Position : raceData.position,
-        viewKeyLabel: _keyLabel(isP2 ? p2KeyConfig.view : p1KeyConfig.view),
-      });
-    }
+    if (STATE === 'RACING') _renderRaceHUD();
 
     // Restore globals
     player    = _sp;

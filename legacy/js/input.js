@@ -12,19 +12,6 @@ let p2KeyConfig = { nitro: 'ShiftRight', hardBrake: 'Numpad0', view: 'KeyP' };
 // When non-null, the next keydown press will be saved as a rebinding
 let _listeningFor = null; // { player: 1|2, action: 'nitro'|'hardBrake'|'view' }
 
-// Short display label for a KeyboardEvent.code, e.g. 'KeyP' → 'P', 'ShiftLeft' → 'L-SHIFT'
-function _keyLabel(code) {
-  if (!code) return '?';
-  if (code.startsWith('Key'))    return code.slice(3);
-  if (code.startsWith('Digit'))  return code.slice(5);
-  if (code.startsWith('Numpad')) return 'NUM' + code.slice(6);
-  if (code.startsWith('Arrow'))  return code.slice(5).toUpperCase();
-  if (code === 'ShiftLeft')  return 'L-SHIFT';
-  if (code === 'ShiftRight') return 'R-SHIFT';
-  if (code === 'Space')      return 'SPACE';
-  return code.toUpperCase();
-}
-
 
 function initInput() {
   window.addEventListener('keydown', e => {
